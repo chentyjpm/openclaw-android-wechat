@@ -1,0 +1,26 @@
+apply plugin: "com.android.library"
+apply plugin: "kotlin-android"
+
+android {
+    namespace "com.carlos.grabredenvelope.demo"
+
+    compileSdkVersion project.properties.compileSdkVersion.toInteger()
+
+    defaultConfig {
+        minSdkVersion project.properties.minSdkVersion.toInteger()
+        targetSdkVersion project.properties.targetSdkVersion.toInteger()
+        consumerProguardFiles "consumer-rules.pro"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+}
+
+dependencies {
+    implementation "com.github.xbdcc:cutils:0.0.18"
+    implementation "com.squareup.okhttp3:okhttp:4.9.0"
+    implementation "com.google.code.gson:gson:2.8.9"
+    implementation "com.google.android.material:material:1.12.0"
+}

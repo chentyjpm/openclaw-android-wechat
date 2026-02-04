@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_open_terminal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/openclaw_open_terminal" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_open_wechat_bot"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/openclaw_open_wechat_bot" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btn_open_accessibility"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:text="@string/openclaw_accessibility_settings" />
+
+</LinearLayout>
