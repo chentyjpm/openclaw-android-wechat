@@ -727,7 +727,7 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
                 return true;
             case CONTEXT_MENU_KIMI_SERVER_ID: {
                 Intent kimiIntent = new Intent();
-                kimiIntent.setClassName(this, "com.ws.kimi_server.ui.MainActivity");
+                kimiIntent.setClassName(this, "com.ws.wx_server.ui.MainActivity");
                 ActivityUtils.startActivity(this, kimiIntent);
                 return true;
             }

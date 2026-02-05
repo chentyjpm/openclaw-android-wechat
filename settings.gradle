@@ -1,1 +1,1 @@
-include ':app', ':termux-shared', ':terminal-emulator', ':terminal-view', ':kimi-server'
+include ':app', ':termux-shared', ':terminal-emulator', ':terminal-view', ':wx-server'
