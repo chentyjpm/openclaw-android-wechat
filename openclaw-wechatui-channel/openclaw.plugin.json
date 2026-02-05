@@ -1,0 +1,10 @@
+{
+  "id": "wechatui",
+  "channels": ["wechatui"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
+

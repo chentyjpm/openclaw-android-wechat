@@ -4,8 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 
 data class ServerConfig(
-    val host: String = "192.168.1.160",
-    val port: Int = 8000,
+    val host: String = "127.0.0.1",
+    val port: Int = 18790,
     val keepAliveSeconds: Int = 60,
     val useTls: Boolean = false,
     val debugEvents: Boolean = false,

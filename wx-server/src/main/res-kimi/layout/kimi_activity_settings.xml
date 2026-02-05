@@ -18,7 +18,7 @@
             android:id="@+id/et_host"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="192.168.1.160"
+            android:hint="127.0.0.1"
             android:inputType="textUri" />
 
         <TextView
@@ -30,7 +30,7 @@
             android:id="@+id/et_port"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="8000"
+            android:hint="18790"
             android:inputType="number" />
 
         <TextView
@@ -70,4 +70,3 @@
             android:text="保存" />
     </LinearLayout>
 </ScrollView>
-
