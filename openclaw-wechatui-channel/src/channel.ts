@@ -18,11 +18,11 @@ import { sendWeChatUiMedia, sendWeChatUiText } from "./send.js";
 const meta = {
   id: "wechatui",
   label: "WeChat UI",
-  selectionLabel: "WeChat UI (ws-server)",
+  selectionLabel: "WeChat UI (wx-server)",
   detailLabel: "WeChat UI",
   docsPath: "/channels/wechatui",
   docsLabel: "wechatui",
-  blurb: "WeChat UI automation via ws-server (or legacy bridge + webhook).",
+  blurb: "WeChat UI automation via phone wx-server (HTTP pull/push).",
   systemImage: "message",
   aliases: ["wx"],
   order: 90,
@@ -60,13 +60,13 @@ export const wechatuiPlugin: ChannelPlugin<ResolvedWeChatUiAccount> = {
         accountId,
         clearBaseFields: ["wsUrl", "wsToken", "bridgeUrl", "bridgeToken", "webhookPath", "webhookSecret", "name"],
       }),
-    isConfigured: (account) =>
-      Boolean(account.config.wsUrl) || Boolean(account.config.bridgeUrl && account.config.bridgeToken),
+    // Phone mode (wx-server HTTP pull/push) requires no extra config besides pointing the phone to the gateway.
+    isConfigured: (_account) => true,
     describeAccount: (account): ChannelAccountSnapshot => ({
       accountId: account.accountId,
       name: account.name,
       enabled: account.enabled,
-      configured: Boolean(account.config.wsUrl) || Boolean(account.config.bridgeUrl && account.config.bridgeToken),
+      configured: true,
       bridgeUrl: account.config.bridgeUrl,
       webhookPath: account.config.webhookPath,
     }),

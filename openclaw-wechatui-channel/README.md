@@ -2,10 +2,18 @@
 
 WeChat UI automation as an OpenClaw `wechatui` channel.
 
-- Preferred: connect to a local/remote **ws-server** via WebSocket.
+- Recommended: phone-side `wx-server` connects to the OpenClaw Gateway via **HTTP `/client/pull` + `/client/push`**.
+- Optional: connect to a local/remote **ws-server** via WebSocket (experimental).
 - Legacy: Windows bridge + inbound webhook (kept for backwards compatibility).
 
-## Topology (two computers)
+## Topology (phone + gateway)
+
+- **Gateway machine (PC)**: runs OpenClaw Gateway + this plugin. Exposes:
+  - `POST /client/pull` (phone pulls tasks)
+  - `POST /client/push` (phone pushes window_state/ack)
+- **Phone (Android)**: runs `wx-server` accessibility service. Configure its `host`/`port` to point to the Gateway.
+
+## Topology (two computers, legacy Windows bridge)
 
 - **Gateway machine**: runs OpenClaw Gateway + this plugin.
 - **WeChat machine (Windows)**: runs WeChat + `pywechat/openclaw_wechat_bridge.py`.
@@ -28,7 +36,16 @@ rm -rf ~/.openclaw/extensions/wechatui
 
 In your OpenClaw config:
 
-### ws-server mode (recommended)
+### Phone wx-server mode (recommended)
+
+No special config is required besides enabling the channel. On the phone, set:
+
+- `host` = gateway LAN IP (e.g. `192.168.1.10`)
+- `port` = OpenClaw Gateway HTTP port (whatever you run OpenClaw on)
+
+The phone will call `http://<host>:<port>/client/pull` and `/client/push`.
+
+### ws-server mode (experimental)
 
 ```toml
 [channels.wechatui]
@@ -36,6 +53,16 @@ wsUrl = "ws://127.0.0.1:18790/ws"
 wsToken = "OPTIONAL_TOKEN"
 dmPolicy = "allowlist"
 allowFrom = ["openclaw", "陈天羽"]
+```
+
+## Standalone smoke test (no OpenClaw install)
+
+If you just want to verify the ws-server endpoint accepts the payloads this plugin sends:
+
+```bash
+cd openclaw-wechatui-channel
+npm i
+WS_URL="ws://127.0.0.1:18790/ws" TARGET="openclaw" node tools/ws-smoke.mjs
 ```
 
 ### Legacy Windows bridge mode

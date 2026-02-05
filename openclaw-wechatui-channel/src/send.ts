@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { resolveWeChatUiAccount } from "./accounts.js";
 import { getWeChatUiRuntime } from "./runtime.js";
 import { getWeChatUiWsClient } from "./ws-client.js";
+import { enqueueWeChatUiSendMediaTask, enqueueWeChatUiSendTextTask } from "./device-hub.js";
 
 type SendTextParams = {
   cfg: OpenClawConfig;
@@ -165,7 +166,9 @@ export async function sendWeChatUiText(params: SendTextParams): Promise<void> {
 
   const baseUrl = normalizeBaseUrl(account.config.bridgeUrl);
   if (!baseUrl) {
-    throw new Error("wechatui: missing channels.wechatui.bridgeUrl");
+    // Phone mode (wx-server HTTP pull/push): enqueue a send_text task and return.
+    enqueueWeChatUiSendTextTask({ targetTitle: to, text: params.text });
+    return;
   }
   const token = String(account.config.bridgeToken ?? "").trim();
   if (!token) {
@@ -237,7 +240,19 @@ export async function sendWeChatUiMedia(params: SendMediaParams): Promise<void> 
 
   const baseUrl = normalizeBaseUrl(account.config.bridgeUrl);
   if (!baseUrl) {
-    throw new Error("wechatui: missing channels.wechatui.bridgeUrl");
+    // Phone mode (wx-server HTTP pull/push): send image as a task (image_url).
+    const mediaUrl = params.mediaUrl.trim();
+    if (parseDataUrl(mediaUrl)) {
+      throw new Error("wechatui: base64 data URLs are disabled; use an http(s) URL instead");
+    }
+    if (maybeResolveLocalPath(mediaUrl)) {
+      // Local file paths are not portable to the phone; fall back to link.
+      enqueueWeChatUiSendTextTask({ targetTitle: to, text: mediaUrl });
+      if (params.text.trim()) enqueueWeChatUiSendTextTask({ targetTitle: to, text: params.text });
+      return;
+    }
+    enqueueWeChatUiSendMediaTask({ targetTitle: to, text: params.text, mediaUrl });
+    return;
   }
   const token = String(account.config.bridgeToken ?? "").trim();
   if (!token) {

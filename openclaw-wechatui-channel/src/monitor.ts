@@ -1,42 +1,21 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ChannelLogSink, OpenClawConfig } from "openclaw/plugin-sdk";
-import { logInboundDrop } from "openclaw/plugin-sdk";
 import type { ResolvedWeChatUiAccount } from "./accounts.js";
 import { resolveWeChatUiAccount } from "./accounts.js";
 import { WeChatUiConfigSchema } from "./config-schema.js";
-import { sendWeChatUiMedia, sendWeChatUiText } from "./send.js";
-import { getWeChatUiRuntime } from "./runtime.js";
 import { getWeChatUiWsClient } from "./ws-client.js";
-
-type WeChatUiRuntimeEnv = {
-  log?: (message: string) => void;
-  error?: (message: string) => void;
-};
-
-type WeChatUiCoreRuntime = ReturnType<typeof getWeChatUiRuntime>;
+import { sendWeChatUiMedia, sendWeChatUiText } from "./send.js";
+import type { InboundPayload, WeChatUiRuntimeEnv } from "./inbound.js";
+import { processWeChatUiInboundMessage } from "./inbound.js";
+import { registerWeChatUiDeviceHubContext } from "./device-hub.js";
 
 type WebhookTarget = {
   account: ResolvedWeChatUiAccount;
   config: OpenClawConfig;
   runtime: WeChatUiRuntimeEnv;
-  core: WeChatUiCoreRuntime;
   path: string;
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
   log?: ChannelLogSink;
-};
-
-type InboundPayload = {
-  accountId?: string;
-  from?: string;
-  text?: string;
-  timestamp?: number;
-  fromMe?: boolean;
-  media?: Array<{
-    kind?: string;
-    id?: string;
-    url?: string;
-    path?: string;
-  }>;
 };
 
 const DEFAULT_WEBHOOK_PATH = "/wechatui";
@@ -148,135 +127,18 @@ function readInboundAccountId(raw: unknown): string {
 }
 
 async function processInboundMessage(payload: InboundPayload, target: WebhookTarget): Promise<void> {
-  const { account, config, core, runtime, statusSink } = target;
-
-  if (payload.fromMe) {
-    return;
-  }
-
-  const from = String(payload.from ?? "").trim();
-  const text = String(payload.text ?? "");
-  const timestamp = typeof payload.timestamp === "number" ? payload.timestamp : Date.now();
-
-  if (!from || !text.trim()) {
-    return;
-  }
-
-  // If bridge includes media ids, turn them into URLs using bridgeUrl so the agent can access them.
-  // (OpenClaw core media ingestion differs by provider; this keeps the integration text-only.)
-  let textWithMedia = text;
-  const media = Array.isArray(payload.media) ? payload.media : [];
-  if (media.length > 0) {
-    const baseUrl = String(account.config.bridgeUrl ?? "").trim().replace(/\/$/, "");
-    const lines: string[] = [];
-    for (const m of media) {
-      const kind = String(m?.kind ?? "").trim();
-      const id = String(m?.id ?? "").trim();
-      const url = String(m?.url ?? "").trim();
-      if (kind === "image" && (url || (baseUrl && id))) {
-        const resolved = url || `${baseUrl}/media/${id}`;
-        lines.push(`[image] ${resolved}`);
-      }
-    }
-    if (lines.length > 0) {
-      textWithMedia = `${text}\n\n${lines.join("\n")}`;
-    }
-  }
-
-  // Optional allowlist gating (recommended; also matches your "指定联系人" requirement)
-  const dmPolicy = account.config.dmPolicy ?? "allowlist";
-  const allowFrom = (account.config.allowFrom ?? []).map((v) => String(v).trim()).filter(Boolean);
-  if (dmPolicy === "disabled") {
-    return;
-  }
-  if (dmPolicy === "allowlist" && allowFrom.length > 0 && !allowFrom.includes(from)) {
-    logInboundDrop({
-      log: (msg) => runtime.log?.(`[wechatui] ${msg}`),
-      channel: "wechatui",
-      reason: "dm sender not allowed",
-      target: from,
-    });
-    return;
-  }
-
-  const route = core.channel.routing.resolveAgentRoute({
-    cfg: config,
-    channel: "wechatui",
-    accountId: account.accountId,
-    peer: { kind: "dm", id: from },
-  });
-
-  const ctxPayload = {
-    Body: textWithMedia,
-    BodyForAgent: textWithMedia,
-    RawBody: textWithMedia,
-    CommandBody: textWithMedia,
-    BodyForCommands: textWithMedia,
-    From: `wechatui:${from}`,
-    To: `wechatui:${from}`,
-    SessionKey: route.sessionKey,
-    AccountId: route.accountId,
-    ChatType: "direct",
-    ConversationLabel: from,
-    SenderName: from,
-    SenderId: from,
-    Provider: "wechatui",
-    Surface: "wechatui",
-    Timestamp: timestamp,
-    OriginatingChannel: "wechatui",
-    OriginatingTo: `wechatui:${from}`,
-    WasMentioned: true,
-    CommandAuthorized: true,
-  };
-
-  statusSink?.({ lastInboundAt: Date.now() });
-
-  const textLimit =
-    account.config.textChunkLimit && account.config.textChunkLimit > 0 ? account.config.textChunkLimit : 1500;
-
-  await core.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
-    ctx: ctxPayload,
-    cfg: config,
-    dispatcherOptions: {
-      deliver: async (replyPayload) => {
-        const replyText = String(replyPayload.text ?? "");
-        const mediaUrls: string[] = [];
-        const one = String(replyPayload.mediaUrl ?? "").trim();
-        if (one) mediaUrls.push(one);
-        const many = Array.isArray(replyPayload.mediaUrls) ? replyPayload.mediaUrls : [];
-        for (const u of many) {
-          const s = String(u ?? "").trim();
-          if (s) mediaUrls.push(s);
-        }
-
-        // Telegram-style: if there's a mediaUrl, send media first, then follow up with text chunks.
-        if (mediaUrls.length > 0) {
-          for (const u of mediaUrls) {
-            await sendWeChatUiMedia({
-              cfg: config,
-              accountId: account.accountId,
-              to: from,
-              text: "",
-              mediaUrl: u,
-            });
-            statusSink?.({ lastOutboundAt: Date.now() });
-          }
-        }
-
-        if (replyText.trim()) {
-          const chunks = core.channel.text.chunkMarkdownText(replyText, textLimit);
-          if (!chunks.length && replyText) chunks.push(replyText);
-          for (const chunk of chunks) {
-            await sendWeChatUiText({
-              cfg: config,
-              accountId: account.accountId,
-              to: from,
-              text: chunk,
-            });
-            statusSink?.({ lastOutboundAt: Date.now() });
-          }
-        }
-      },
+  await processWeChatUiInboundMessage({
+    payload,
+    account: target.account,
+    cfg: target.config,
+    runtime: target.runtime,
+    statusSink: target.statusSink,
+    log: target.log,
+    deliverText: async ({ to, text }) => {
+      await sendWeChatUiText({ cfg: target.config, accountId: target.account.accountId, to, text });
+    },
+    deliverMedia: async ({ to, text, mediaUrl }) => {
+      await sendWeChatUiMedia({ cfg: target.config, accountId: target.account.accountId, to, text, mediaUrl });
     },
   });
 }
@@ -357,10 +219,17 @@ export async function monitorWeChatUiProvider(params: {
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
   log?: ChannelLogSink;
 }): Promise<() => void> {
-  const core = getWeChatUiRuntime();
   const account = resolveWeChatUiAccount({ cfg: params.cfg, accountId: params.accountId });
   // Validate config early.
   WeChatUiConfigSchema.parse((params.cfg.channels?.["wechatui"] ?? {}) as unknown);
+
+  const unregisterDeviceHub = registerWeChatUiDeviceHubContext({
+    account,
+    cfg: params.cfg,
+    runtime: params.runtime,
+    statusSink: params.statusSink,
+    log: params.log,
+  });
 
   const wsUrl = normalizeWsUrl(account.config.wsUrl);
   if (wsUrl) {
@@ -375,7 +244,6 @@ export async function monitorWeChatUiProvider(params: {
         account,
         config: params.cfg,
         runtime: params.runtime,
-        core,
         path: "/ws",
         statusSink: params.statusSink,
         log: params.log,
@@ -390,6 +258,7 @@ export async function monitorWeChatUiProvider(params: {
       unsubscribeMessage();
       unsubscribeState();
       client.close();
+      unregisterDeviceHub();
     };
 
     if (params.abortSignal.aborted) {
@@ -405,7 +274,6 @@ export async function monitorWeChatUiProvider(params: {
     account,
     config: params.cfg,
     runtime: params.runtime,
-    core,
     path: webhookPath,
     statusSink: params.statusSink,
     log: params.log,
@@ -415,6 +283,7 @@ export async function monitorWeChatUiProvider(params: {
 
   const stop = () => {
     unregister();
+    unregisterDeviceHub();
   };
 
   if (params.abortSignal.aborted) {
