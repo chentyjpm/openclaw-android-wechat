@@ -18,7 +18,8 @@ android {
         }
 
         ndk {
-            abiFilters 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
+            // Only support arm64-v8a (aarch64).
+            abiFilters 'arm64-v8a'
         }
     }
 

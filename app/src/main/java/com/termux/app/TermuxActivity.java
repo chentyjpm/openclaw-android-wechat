@@ -43,6 +43,7 @@ import com.termux.app.activities.HelpActivity;
 import com.termux.app.activities.SettingsActivity;
 import com.termux.shared.termux.crash.TermuxCrashUtils;
 import com.termux.shared.termux.settings.preferences.TermuxAppSharedPreferences;
+import com.termux.shared.termux.shell.command.runner.terminal.TermuxSession;
 import com.termux.app.terminal.TermuxSessionsListViewController;
 import com.termux.app.terminal.io.TerminalToolbarViewPager;
 import com.termux.app.terminal.TermuxTerminalViewClient;
@@ -299,6 +300,20 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
             addTermuxActivityRootViewGlobalLayoutListener();
 
         registerTermuxActivityBroadcastReceiver();
+
+        // Fallback trigger: if the service is already connected (e.g. activity recreation),
+        // ensure the startup script gets a chance to run. TermuxService itself debounces calls.
+        if (mTermuxService != null) {
+            String workingDirectory;
+            TerminalSession currentSession = getCurrentSession();
+            if (currentSession == null) workingDirectory = mProperties.getDefaultWorkingDirectory();
+            else workingDirectory = currentSession.getCwd();
+
+            TermuxSession startupSession = mTermuxService.runStartupScriptInTerminalSessionIfNeeded(workingDirectory);
+            if (startupSession != null && mTermuxTerminalSessionActivityClient != null) {
+                mTermuxTerminalSessionActivityClient.setCurrentSession(startupSession.getTerminalSession());
+            }
+        }
     }
 
     @Override
@@ -404,6 +419,10 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
                             launchFailsafe = intent.getExtras().getBoolean(TERMUX_ACTIVITY.EXTRA_FAILSAFE_SESSION, false);
                         }
                         mTermuxTerminalSessionActivityClient.addNewSession(launchFailsafe, null);
+                        TermuxSession startupSession = mTermuxService.runStartupScriptInTerminalSessionIfNeeded(mProperties.getDefaultWorkingDirectory());
+                        if (startupSession != null) {
+                            mTermuxTerminalSessionActivityClient.setCurrentSession(startupSession.getTerminalSession());
+                        }
                     } catch (WindowManager.BadTokenException e) {
                         // Activity finished - ignore.
                     }
@@ -422,6 +441,15 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
                 mTermuxTerminalSessionActivityClient.addNewSession(isFailSafe, null);
             } else {
                 mTermuxTerminalSessionActivityClient.setCurrentSession(mTermuxTerminalSessionActivityClient.getCurrentStoredSessionOrLast());
+            }
+            String workingDirectory;
+            TerminalSession currentSession = getCurrentSession();
+            if (currentSession == null) workingDirectory = mProperties.getDefaultWorkingDirectory();
+            else workingDirectory = currentSession.getCwd();
+
+            TermuxSession startupSession = mTermuxService.runStartupScriptInTerminalSessionIfNeeded(workingDirectory);
+            if (startupSession != null) {
+                mTermuxTerminalSessionActivityClient.setCurrentSession(startupSession.getTerminalSession());
             }
         }
 
