@@ -134,10 +134,10 @@ object WeChatAgent {
             val key = normalizeTitle(item.title)
             homeStates[key] = HomeState(item.unread ?: 0, item.snippet)
         }
-        if (target == null) return false
-        val openKey = normalizeTitle(target.title)
+        val selected = target ?: return false
+        val openKey = normalizeTitle(selected.title)
         lastAutoOpen[openKey] = now
-        val targetRaw = target.title.trim()
+        val targetRaw = selected.title.trim()
         if (targetRaw.isEmpty()) return false
         return openChatFromHome(normalizeTitle(targetRaw), targetRaw)
     }
