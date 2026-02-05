@@ -6,6 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveWeChatUiAccount } from "./accounts.js";
 import { getWeChatUiRuntime } from "./runtime.js";
+import { getWeChatUiWsClient } from "./ws-client.js";
 
 type SendTextParams = {
   cfg: OpenClawConfig;
@@ -26,6 +27,11 @@ function normalizeBaseUrl(raw?: string | null): string {
   const trimmed = String(raw ?? "").trim();
   if (!trimmed) return "";
   return trimmed.endsWith("/") ? trimmed.slice(0, -1) : trimmed;
+}
+
+function normalizeWsUrl(raw?: string | null): string {
+  const trimmed = String(raw ?? "").trim();
+  return trimmed;
 }
 
 function parseDataUrl(mediaUrl: string): { mime: string; base64: string } | null {
@@ -60,6 +66,48 @@ function maybeResolveLocalPath(mediaUrl: string): string | null {
     // ignore
   }
   return null;
+}
+
+async function wsSendText(params: { wsUrl: string; wsToken: string; accountId: string; to: string; text: string }) {
+  const rt = getWeChatUiRuntime();
+  const client = getWeChatUiWsClient({
+    accountId: params.accountId,
+    wsUrl: params.wsUrl,
+    wsToken: params.wsToken,
+    log: rt.log,
+  });
+  await client.sendJson({
+    op: "send_text",
+    account_id: params.accountId,
+    target: params.to,
+    text: params.text,
+    ts_ms: Date.now(),
+  });
+}
+
+async function wsSendMedia(params: {
+  wsUrl: string;
+  wsToken: string;
+  accountId: string;
+  to: string;
+  text: string;
+  mediaUrl: string;
+}) {
+  const rt = getWeChatUiRuntime();
+  const client = getWeChatUiWsClient({
+    accountId: params.accountId,
+    wsUrl: params.wsUrl,
+    wsToken: params.wsToken,
+    log: rt.log,
+  });
+  await client.sendJson({
+    op: "send_media",
+    account_id: params.accountId,
+    target: params.to,
+    text: params.text,
+    media_url: params.mediaUrl,
+    ts_ms: Date.now(),
+  });
 }
 
 async function postBridgeImageUpload(params: {
@@ -101,6 +149,20 @@ export async function sendWeChatUiText(params: SendTextParams): Promise<void> {
     throw missingTargetError("wechatui");
   }
   const account = resolveWeChatUiAccount({ cfg: params.cfg, accountId: params.accountId });
+
+  const wsUrl = normalizeWsUrl(account.config.wsUrl);
+  if (wsUrl) {
+    const wsToken = String(account.config.wsToken ?? "").trim();
+    await wsSendText({
+      wsUrl,
+      wsToken,
+      accountId: account.accountId,
+      to,
+      text: params.text,
+    });
+    return;
+  }
+
   const baseUrl = normalizeBaseUrl(account.config.bridgeUrl);
   if (!baseUrl) {
     throw new Error("wechatui: missing channels.wechatui.bridgeUrl");
@@ -131,6 +193,48 @@ export async function sendWeChatUiMedia(params: SendMediaParams): Promise<void> 
     throw missingTargetError("wechatui");
   }
   const account = resolveWeChatUiAccount({ cfg: params.cfg, accountId: params.accountId });
+
+  const wsUrl = normalizeWsUrl(account.config.wsUrl);
+  if (wsUrl) {
+    const wsToken = String(account.config.wsToken ?? "").trim();
+    const mediaUrl = params.mediaUrl.trim();
+
+    // Local paths are not portable; fall back to link.
+    if (maybeResolveLocalPath(mediaUrl)) {
+      await wsSendText({
+        wsUrl,
+        wsToken,
+        accountId: account.accountId,
+        to,
+        text: mediaUrl,
+      });
+      if (params.text.trim()) {
+        await wsSendText({
+          wsUrl,
+          wsToken,
+          accountId: account.accountId,
+          to,
+          text: params.text,
+        });
+      }
+      return;
+    }
+
+    if (parseDataUrl(mediaUrl)) {
+      throw new Error("wechatui: base64 data URLs are disabled; use an http(s) URL instead");
+    }
+
+    await wsSendMedia({
+      wsUrl,
+      wsToken,
+      accountId: account.accountId,
+      to,
+      text: params.text,
+      mediaUrl,
+    });
+    return;
+  }
+
   const baseUrl = normalizeBaseUrl(account.config.bridgeUrl);
   if (!baseUrl) {
     throw new Error("wechatui: missing channels.wechatui.bridgeUrl");

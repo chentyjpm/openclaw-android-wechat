@@ -1,10 +1,11 @@
 {
   "name": "wechatui",
   "version": "0.1.0",
-  "description": "OpenClaw WeChat UI (Windows) channel plugin (bridge + webhook)",
+  "description": "OpenClaw WeChat UI channel plugin (ws-server or legacy bridge + webhook)",
   "type": "module",
   "dependencies": {
     "openclaw": "2026.1.30",
+    "ws": "^8.18.3",
     "zod": "^4.3.6"
   },
   "openclaw": {
@@ -12,10 +13,10 @@
     "channel": {
       "id": "wechatui",
       "label": "WeChat UI",
-      "selectionLabel": "WeChat UI (Windows bridge)",
+      "selectionLabel": "WeChat UI (ws-server)",
       "docsPath": "/channels/wechatui",
       "docsLabel": "wechatui",
-      "blurb": "WeChat (Windows UI automation) via a bridge + webhook.",
+      "blurb": "WeChat UI automation via ws-server (or legacy bridge + webhook).",
       "aliases": ["wx"],
       "order": 90
     }

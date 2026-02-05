@@ -1,6 +1,9 @@
 # openclaw-wechatui-channel
 
-WeChat (Windows UI automation) as an OpenClaw `wechatui` channel via a Windows bridge + inbound webhook.
+WeChat UI automation as an OpenClaw `wechatui` channel.
+
+- Preferred: connect to a local/remote **ws-server** via WebSocket.
+- Legacy: Windows bridge + inbound webhook (kept for backwards compatibility).
 
 ## Topology (two computers)
 
@@ -24,6 +27,18 @@ rm -rf ~/.openclaw/extensions/wechatui
 ## Configure (Gateway machine)
 
 In your OpenClaw config:
+
+### ws-server mode (recommended)
+
+```toml
+[channels.wechatui]
+wsUrl = "ws://127.0.0.1:18790/ws"
+wsToken = "OPTIONAL_TOKEN"
+dmPolicy = "allowlist"
+allowFrom = ["openclaw", "陈天羽"]
+```
+
+### Legacy Windows bridge mode
 
 ```toml
 [channels.wechatui]

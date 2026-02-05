@@ -6,6 +6,9 @@ const wechatUiAccountSchema = z.object({
   name: z.string().optional(),
   enabled: z.boolean().optional(),
 
+  wsUrl: z.string().optional(),
+  wsToken: z.string().optional(),
+
   bridgeUrl: z.string().optional(),
   bridgeToken: z.string().optional(),
 
@@ -24,4 +27,3 @@ export const WeChatUiConfigSchema = wechatUiAccountSchema.extend({
 
 export type WeChatUiAccountConfig = z.infer<typeof wechatUiAccountSchema>;
 export type WeChatUiConfig = z.infer<typeof WeChatUiConfigSchema>;
-

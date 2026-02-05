@@ -6,8 +6,8 @@ import { setWeChatUiRuntime } from "./src/runtime.js";
 
 const plugin = {
   id: "wechatui",
-  name: "WeChat UI (Windows)",
-  description: "OpenClaw WeChat UI automation channel via a Windows bridge + webhook",
+  name: "WeChat UI",
+  description: "OpenClaw WeChat UI automation channel via ws-server (or legacy bridge + webhook)",
   configSchema: emptyPluginConfigSchema(),
   register(api: OpenClawPluginApi) {
     setWeChatUiRuntime(api.runtime);
@@ -17,4 +17,3 @@ const plugin = {
 };
 
 export default plugin;
-

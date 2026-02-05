@@ -6,6 +6,7 @@ import { resolveWeChatUiAccount } from "./accounts.js";
 import { WeChatUiConfigSchema } from "./config-schema.js";
 import { sendWeChatUiMedia, sendWeChatUiText } from "./send.js";
 import { getWeChatUiRuntime } from "./runtime.js";
+import { getWeChatUiWsClient } from "./ws-client.js";
 
 type WeChatUiRuntimeEnv = {
   log?: (message: string) => void;
@@ -108,6 +109,42 @@ function isAuthorized(req: IncomingMessage, secret: string): boolean {
   const headerSecret = String(req.headers["x-wechatui-secret"] ?? "").trim();
   const token = bearer || headerSecret;
   return token === secret;
+}
+
+function normalizeWsUrl(raw?: string | null): string {
+  return String(raw ?? "").trim();
+}
+
+function coerceInboundPayload(raw: unknown): InboundPayload | null {
+  if (!raw) return null;
+  if (typeof raw === "string") return null;
+  if (typeof raw !== "object" || Array.isArray(raw)) return null;
+  const obj = raw as Record<string, unknown>;
+
+  const direct = obj as InboundPayload;
+  if (typeof direct.from === "string" || typeof direct.text === "string") {
+    return direct;
+  }
+
+  const payload = obj.payload;
+  if (payload && typeof payload === "object" && !Array.isArray(payload)) {
+    return coerceInboundPayload(payload);
+  }
+  const data = obj.data;
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    return coerceInboundPayload(data);
+  }
+  return null;
+}
+
+function readInboundAccountId(raw: unknown): string {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return "";
+  const obj = raw as Record<string, unknown>;
+  const a = obj.accountId;
+  if (typeof a === "string") return a.trim();
+  const b = obj.account_id;
+  if (typeof b === "string") return b.trim();
+  return "";
 }
 
 async function processInboundMessage(payload: InboundPayload, target: WebhookTarget): Promise<void> {
@@ -324,6 +361,45 @@ export async function monitorWeChatUiProvider(params: {
   const account = resolveWeChatUiAccount({ cfg: params.cfg, accountId: params.accountId });
   // Validate config early.
   WeChatUiConfigSchema.parse((params.cfg.channels?.["wechatui"] ?? {}) as unknown);
+
+  const wsUrl = normalizeWsUrl(account.config.wsUrl);
+  if (wsUrl) {
+    const wsToken = String(account.config.wsToken ?? "").trim();
+    const client = getWeChatUiWsClient({ accountId: account.accountId, wsUrl, wsToken, log: params.log });
+    const unsubscribeMessage = client.onMessage((raw) => {
+      const inbound = coerceInboundPayload(raw);
+      if (!inbound) return;
+      const expected = readInboundAccountId(inbound);
+      if (expected && expected !== account.accountId) return;
+      void processInboundMessage(inbound, {
+        account,
+        config: params.cfg,
+        runtime: params.runtime,
+        core,
+        path: "/ws",
+        statusSink: params.statusSink,
+        log: params.log,
+      }).catch((err) => params.runtime.error?.(`[wechatui] inbound failed: ${String(err)}`));
+    });
+    const unsubscribeState = client.onState((state) => {
+      params.runtime.log?.(`[${account.accountId}] [wechatui] ws state=${state}`);
+    });
+    client.start(params.abortSignal);
+
+    const stop = () => {
+      unsubscribeMessage();
+      unsubscribeState();
+      client.close();
+    };
+
+    if (params.abortSignal.aborted) {
+      stop();
+      return stop;
+    }
+    params.abortSignal.addEventListener("abort", stop, { once: true });
+    return stop;
+  }
+
   const webhookPath = resolveWebhookPathFromConfig(account.config);
   const unregister = registerWeChatUiWebhookTarget({
     account,
