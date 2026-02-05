@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Package visibility (Android 11+) for WeChat. This will be merged into the base app manifest. -->
+    <queries>
+        <package android:name="com.tencent.mm" />
+    </queries>
+
+    <application tools:node="merge">
+
+        <activity
+            android:name="com.ws.kimi_server.ui.MainActivity"
+            android:exported="false"
+            android:label="@string/kimi_app_name" />
+
+        <activity
+            android:name="com.ws.kimi_server.ui.SettingsActivity"
+            android:exported="false" />
+
+        <service
+            android:name="com.ws.kimi_server.core.CoreForegroundService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <service
+            android:name="com.ws.kimi_server.acc.MyAccessibilityService"
+            android:exported="false"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/kimi_accessibility_service_config" />
+        </service>
+
+    </application>
+
+</manifest>

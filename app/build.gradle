@@ -38,7 +38,7 @@ android {
 
         implementation project(":terminal-view")
         implementation project(":termux-shared")
-        implementation project(":huixiangdou")
+        implementation project(":kimi-server")
     }
 
     defaultConfig {
