@@ -65,6 +65,35 @@ npm i
 WS_URL="ws://127.0.0.1:18790/ws" TARGET="openclaw" node tools/ws-smoke.mjs
 ```
 
+## Standalone phone dev server (no OpenClaw install)
+
+If you just want to debug the phone-side `wx-server` HTTP transport (without running OpenClaw),
+start a minimal server that implements `/client/pull` and `/client/push`:
+
+```bash
+cd openclaw-wechatui-channel
+node tools/dev-server.mjs
+```
+
+Then set the phone `wx-server` config:
+
+- `host` = your PC LAN IP
+- `port` = `18790` (or whatever you set `PORT=` to)
+
+To enqueue a task manually:
+
+```bash
+curl -sS -X POST "http://127.0.0.1:18790/dev/enqueue/send_text" \
+  -H "content-type: application/json" \
+  -d '{"target_title":"openclaw","text":"hello from dev-server","mode":"text"}'
+```
+
+To inspect server state:
+
+```bash
+curl -sS "http://127.0.0.1:18790/dev/state"
+```
+
 ### Legacy Windows bridge mode
 
 ```toml
