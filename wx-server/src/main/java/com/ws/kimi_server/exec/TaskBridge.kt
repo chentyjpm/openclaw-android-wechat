@@ -111,10 +111,8 @@ object TaskBridge {
     private fun buildWeChatState(payload: WeChatStatePayload): WeChatState {
         val items = payload.messages.orEmpty()
         val messages = if (items.isEmpty()) null else {
-            WeChatMessages(items = items.map { msg ->
-                Logger.d("TaskBridge", "message: ${msg.toString()}")
-                msg.toHttp()
-            })
+            Logger.i("window_state wechat messages=${items.size} screen=${payload.screen} title=${payload.title}", tag = "LanBotWeChat")
+            WeChatMessages(items = items.map { msg -> msg.toHttp() })
         }
         return WeChatState(
             screen = payload.screen.toWire(),

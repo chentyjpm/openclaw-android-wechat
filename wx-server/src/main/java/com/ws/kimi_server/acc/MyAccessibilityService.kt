@@ -18,6 +18,7 @@ class MyAccessibilityService : AccessibilityService() {
     private var lastWindowKey: String? = null
     private var lastPkg: String = ""
     private var lastCls: String = ""
+    private var lastWeChatMsgLogAt = 0L
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -167,11 +168,28 @@ class MyAccessibilityService : AccessibilityService() {
                 val filtered = com.ws.wx_server.apps.wechat.WeChatAgent.filterSnapshot(this, snap, allowScroll)
                 val json = com.ws.wx_server.apps.wechat.WeChatParser.toJson(filtered)
                 intent.putExtra(EXTRA_WECHAT_JSON, json.toString())
+                if (filtered.messages?.isNotEmpty() == true) {
+                    val cfg = com.ws.wx_server.link.LinkConfigStore.load(applicationContext)
+                    if (cfg.debugEvents || cfg.debugXml) {
+                        val nowMs = System.currentTimeMillis()
+                        if (nowMs - lastWeChatMsgLogAt >= 800L) {
+                            lastWeChatMsgLogAt = nowMs
+                            val first = filtered.messages.firstOrNull()
+                            val sender = first?.sender ?: ""
+                            val text = (first?.text ?: first?.desc ?: "").take(80)
+                            Logger.i(
+                                "WeChat parsed: screen=${filtered.screen} title=${filtered.title ?: ""} messages=${filtered.messages.size} firstSender=$sender first=$text",
+                                tag = "LanBotWeChat"
+                            )
+                        }
+                    }
+                }
                 wechatPayload = TaskBridge.WeChatStatePayload(
                     screen = TaskBridge.screenFromSnapshot(filtered.screen),
                     chatId = filtered.chatId ?: filtered.title,
                     title = filtered.title,
                     isGroup = filtered.isGroup,
+                    messages = filtered.messages?.takeLast(20),
                 )
             }
         }

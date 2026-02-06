@@ -8,13 +8,17 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.ws.wx_server.link.LinkConfigStore
 import com.ws.wx_server.util.Logger
+import java.io.File
 
 object AccessibilityDebug {
     private const val XML_THROTTLE_MS = 150L
+    private const val XML_FILE_THROTTLE_MS = 1500L
     private const val MAX_NODES = 700
     private const val MAX_DEPTH = 18
     private const val MAX_TEXT = 120
+    private const val LOGCAT_CHUNK_CHARS = 3200
     @Volatile private var lastXmlAt = 0L
+    @Volatile private var lastXmlFileAt = 0L
 
     fun onEvent(service: AccessibilityService, event: AccessibilityEvent) {
         val cfg = LinkConfigStore.load(service.applicationContext)
@@ -29,7 +33,8 @@ object AccessibilityDebug {
                 lastXmlAt = now
                 val root = service.rootInActiveWindow
                 val xml = if (root != null) buildXml(root) else "<node root=\"null\"/>"
-                Logger.d("AccXml:\n$xml", tag = "LanBotAccXml")
+                logXmlToLogcat(xml)
+                maybeWriteXmlToFile(service, xml)
             }
         }
     }
@@ -132,6 +137,39 @@ object AccessibilityDebug {
             sb.append("<!-- truncated -->\n")
         }
         return sb.toString()
+    }
+
+    private fun logXmlToLogcat(xml: String) {
+        if (xml.length <= LOGCAT_CHUNK_CHARS) {
+            Logger.d("AccXml:\n$xml", tag = "LanBotAccXml")
+            return
+        }
+        val totalParts = (xml.length + LOGCAT_CHUNK_CHARS - 1) / LOGCAT_CHUNK_CHARS
+        Logger.d("AccXml: len=${xml.length} parts=$totalParts", tag = "LanBotAccXml")
+        var start = 0
+        var part = 1
+        while (start < xml.length) {
+            val end = (start + LOGCAT_CHUNK_CHARS).coerceAtMost(xml.length)
+            val chunk = xml.substring(start, end)
+            Logger.d("AccXml[$part/$totalParts]:\n$chunk", tag = "LanBotAccXml")
+            start = end
+            part++
+        }
+    }
+
+    private fun maybeWriteXmlToFile(service: AccessibilityService, xml: String) {
+        val now = SystemClock.uptimeMillis()
+        if (now - lastXmlFileAt < XML_FILE_THROTTLE_MS) return
+        lastXmlFileAt = now
+        try {
+            val dir = File(service.applicationContext.filesDir, "accxml")
+            if (!dir.exists()) dir.mkdirs()
+            val out = File(dir, "accxml-latest.xml")
+            out.writeText(xml)
+            Logger.i("AccXml saved: ${out.absolutePath} (${xml.length} chars)", tag = "LanBotAccXml")
+        } catch (t: Throwable) {
+            Logger.w("AccXml save failed: ${t.message}", tag = "LanBotAccXml")
+        }
     }
 
     private fun eventTypeName(type: Int): String = when (type) {
