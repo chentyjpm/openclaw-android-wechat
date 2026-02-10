@@ -12,6 +12,8 @@
         android:name="android.software.leanback"
         android:required="false" />
 
+    <uses-sdk tools:overrideLibrary="com.equationl.fastdeployocr" />
+
     <permission
         android:name="${TERMUX_PACKAGE_NAME}.permission.RUN_COMMAND"
         android:description="@string/permission_run_command_description"

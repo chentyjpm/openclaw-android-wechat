@@ -34,4 +34,5 @@ dependencies {
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.work:work-runtime-ktx:2.9.0"
     implementation "com.squareup.okhttp3:okhttp:4.9.0"
+    implementation "com.github.equationl.paddleocr4android:fastdeplyocr:v1.2.9"
 }

@@ -111,6 +111,10 @@ class CoreForegroundService : Service() {
                         if (!wx.isNullOrBlank()) {
                             try { put("wechat", org.json.JSONObject(wx)) } catch (_: Throwable) {}
                         }
+                        val capture = intent.getStringExtra(com.ws.wx_server.acc.MyAccessibilityService.EXTRA_CAPTURE_JSON)
+                        if (!capture.isNullOrBlank()) {
+                            try { put("capture", org.json.JSONObject(capture)) } catch (_: Throwable) {}
+                        }
                     }
                     if (debug) {
                         link.sendText(json.toString())

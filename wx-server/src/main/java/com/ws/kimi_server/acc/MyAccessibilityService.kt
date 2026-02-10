@@ -3,22 +3,33 @@ package com.ws.wx_server.acc
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
+import android.graphics.Bitmap
+import android.hardware.HardwareBuffer
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
+import android.view.Display
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
-import com.ws.wx_server.exec.TaskBridge
 import com.ws.wx_server.debug.AccessibilityDebug
+import com.ws.wx_server.exec.TaskBridge
+import com.ws.wx_server.link.CAPTURE_STRATEGY_SCREEN_FIRST
+import com.ws.wx_server.ocr.PPOcrRecognizer
 import com.ws.wx_server.util.Logger
+import java.io.ByteArrayOutputStream
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class MyAccessibilityService : AccessibilityService() {
     private var lastSent = 0L
+    private var lastCaptureAt = 0L
     private val handler = Handler(Looper.getMainLooper())
     private var pendingFollowUp: Runnable? = null
     private var lastWindowKey: String? = null
     private var lastPkg: String = ""
     private var lastCls: String = ""
-    private var lastWeChatMsgLogAt = 0L
+    private val ppOcrRecognizer by lazy { PPOcrRecognizer(applicationContext) }
+    private var lastLoggedOcrText: String = ""
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -37,7 +48,7 @@ class MyAccessibilityService : AccessibilityService() {
         } catch (_: Throwable) { }
         Logger.i("Accessibility connected")
         val cfg = com.ws.wx_server.link.LinkConfigStore.load(applicationContext)
-        Logger.i("AccDebug config: events=${cfg.debugEvents} xml=${cfg.debugXml}")
+        Logger.i("AccDebug config: events=${cfg.debugEvents} xml=${cfg.debugXml} capture=${cfg.captureStrategy}")
         try {
             val i = Intent(ACTION_CONNECTED)
             i.setPackage(packageName)
@@ -93,19 +104,18 @@ class MyAccessibilityService : AccessibilityService() {
                 lastWindowKey = key
                 lastSent = 0L
             }
-            val result = emitSnapshot(type, force = true)
+            val result = emitSnapshot(force = true)
             when (result.status) {
                 SnapshotStatus.SENT -> Unit
-                SnapshotStatus.NO_ROOT -> scheduleFollowUp(result.retryDelayMs, type, force = true)
-                SnapshotStatus.THROTTLED -> scheduleFollowUp(result.retryDelayMs, type, force = false)
+                SnapshotStatus.THROTTLED -> scheduleFollowUp(result.retryDelayMs, force = false)
             }
             return
         }
 
-        val result = emitSnapshot(type, force = false)
+        val result = emitSnapshot(force = false)
         when (result.status) {
             SnapshotStatus.SENT -> Unit
-            SnapshotStatus.NO_ROOT, SnapshotStatus.THROTTLED -> scheduleFollowUp(result.retryDelayMs, type, force = false)
+            SnapshotStatus.THROTTLED -> scheduleFollowUp(result.retryDelayMs, force = false)
         }
     }
 
@@ -115,10 +125,11 @@ class MyAccessibilityService : AccessibilityService() {
 
     private data class SnapshotResult(val status: SnapshotStatus, val retryDelayMs: Long = 0L)
 
-    private enum class SnapshotStatus { SENT, THROTTLED, NO_ROOT }
+    private enum class SnapshotStatus { SENT, THROTTLED }
 
-    private fun emitSnapshot(eventType: Int, force: Boolean): SnapshotResult {
+    private fun emitSnapshot(force: Boolean): SnapshotResult {
         val now = System.currentTimeMillis()
+        val cfg = com.ws.wx_server.link.LinkConfigStore.load(applicationContext)
         if (!force) {
             val elapsed = now - lastSent
             if (elapsed < SNAPSHOT_THROTTLE_MS) {
@@ -126,83 +137,44 @@ class MyAccessibilityService : AccessibilityService() {
                 return SnapshotResult(SnapshotStatus.THROTTLED, wait)
             }
         }
-        val root = rootInActiveWindow ?: return SnapshotResult(SnapshotStatus.NO_ROOT, 160L)
-        val pkg = root.packageName?.toString()?.takeIf { it.isNotBlank() } ?: lastPkg
-        val cls = root.className?.toString()?.takeIf { it.isNotBlank() } ?: lastCls
-        val text = tryCollectText(root)
+        val pkg = lastPkg
+        val cls = lastCls
+        var recognizedText = ""
         val intent = Intent(ACTION_SNAPSHOT).apply {
             putExtra(EXTRA_PKG, pkg)
             putExtra(EXTRA_CLS, cls)
-            putExtra(EXTRA_TEXT, text)
         }
 
-        var stateJson: org.json.JSONObject? = null
-        var nodes = 0
-        var clickable = 0
-        var focusable = 0
-        var editable = 0
-        var recyclers = 0
-        var wechatPayload: TaskBridge.WeChatStatePayload? = null
-        try {
-            val state = com.ws.wx_server.parser.WindowStateBuilder.build(root, pkg, cls)
-            stateJson = state
-            intent.putExtra(EXTRA_STATE_JSON, state.toString())
-            nodes = state.optInt("nodes")
-            clickable = state.optInt("clickable")
-            focusable = state.optInt("focusable")
-            editable = state.optInt("editable")
-            recyclers = state.optInt("recyclers")
-        } catch (_: Throwable) { }
-
-        if (pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG) {
-            val snap = com.ws.wx_server.apps.wechat.WeChatParser.parse(this, root, cls)
-            if (snap != null) {
-                if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
-                    (snap.screen == "conversations" || snap.screen == "home")
-                ) {
-                    if (!com.ws.wx_server.apps.wechat.WeChatNotifyGate.isLocked()) {
-                        com.ws.wx_server.apps.wechat.WeChatAgent.maybeOpenChatFromHome(this, snap)
-                    }
-                }
-                val allowScroll = eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
-                val filtered = com.ws.wx_server.apps.wechat.WeChatAgent.filterSnapshot(this, snap, allowScroll)
-                val json = com.ws.wx_server.apps.wechat.WeChatParser.toJson(filtered)
-                intent.putExtra(EXTRA_WECHAT_JSON, json.toString())
-                if (filtered.messages?.isNotEmpty() == true) {
-                    val cfg = com.ws.wx_server.link.LinkConfigStore.load(applicationContext)
-                    if (cfg.debugEvents || cfg.debugXml) {
-                        val nowMs = System.currentTimeMillis()
-                        if (nowMs - lastWeChatMsgLogAt >= 800L) {
-                            lastWeChatMsgLogAt = nowMs
-                            val first = filtered.messages.firstOrNull()
-                            val sender = first?.sender ?: ""
-                            val text = (first?.text ?: first?.desc ?: "").take(80)
-                            Logger.i(
-                                "WeChat parsed: screen=${filtered.screen} title=${filtered.title ?: ""} messages=${filtered.messages.size} firstSender=$sender first=$text",
-                                tag = "LanBotWeChat"
-                            )
-                        }
-                    }
-                }
-                wechatPayload = TaskBridge.WeChatStatePayload(
-                    screen = TaskBridge.screenFromSnapshot(filtered.screen),
-                    chatId = filtered.chatId ?: filtered.title,
-                    title = filtered.title,
-                    isGroup = filtered.isGroup,
-                    messages = filtered.messages?.takeLast(20),
-                )
-            }
+        val capture = maybeCapturePayload(
+            pkg = pkg,
+            now = now,
+            force = force,
+            strategy = cfg.captureStrategy,
+        )
+        capture?.let {
+            recognizedText = it.text
+            val captureJson = org.json.JSONObject()
+                .put("mode", it.payload.mode)
+                .put("mime", it.payload.mime)
+                .put("width", it.payload.width)
+                .put("height", it.payload.height)
+                .put("ts_ms", it.payload.tsMs)
+                .put("data_base64", it.payload.dataBase64)
+            intent.putExtra(EXTRA_CAPTURE_JSON, captureJson.toString())
         }
+        intent.putExtra(EXTRA_TEXT, recognizedText)
+        maybeLogOcrTextChange(recognizedText)
 
         TaskBridge.sendWindowState(
             pkg = pkg,
             cls = cls,
-            nodes = nodes,
-            clickable = clickable,
-            focusable = focusable,
-            editable = editable,
-            recyclers = recyclers,
-            wechat = wechatPayload,
+            nodes = 0,
+            clickable = 0,
+            focusable = 0,
+            editable = 0,
+            recyclers = 0,
+            wechat = null,
+            capture = capture?.payload,
         )
 
         intent.setPackage(packageName)
@@ -211,24 +183,143 @@ class MyAccessibilityService : AccessibilityService() {
         return SnapshotResult(SnapshotStatus.SENT)
     }
 
+    private fun maybeCapturePayload(
+        pkg: String,
+        now: Long,
+        force: Boolean,
+        strategy: String,
+    ): CapturedPayload? {
+        val shouldCapture = strategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
+            pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+        if (!shouldCapture) return null
+        if (!force && now - lastCaptureAt < SCREEN_CAPTURE_THROTTLE_MS) return null
+        val captured = captureScreenFrame() ?: return null
+        lastCaptureAt = now
+        return CapturedPayload(
+            payload = TaskBridge.CapturePayload(
+                mode = "accessibility_screen",
+                mime = "image/jpeg",
+                width = captured.width,
+                height = captured.height,
+                tsMs = now,
+                dataBase64 = captured.base64Jpeg,
+            ),
+            text = captured.ocrText,
+        )
+    }
+
+    private data class CapturedPayload(
+        val payload: TaskBridge.CapturePayload,
+        val text: String,
+    )
+
+    private data class CapturedFrame(
+        val width: Int,
+        val height: Int,
+        val base64Jpeg: String,
+        val ocrText: String,
+    )
+
+    private fun captureScreenFrame(): CapturedFrame? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        val latch = CountDownLatch(1)
+        var out: CapturedFrame? = null
+        try {
+            takeScreenshot(
+                Display.DEFAULT_DISPLAY,
+                { runnable -> handler.post(runnable) },
+                object : AccessibilityService.TakeScreenshotCallback {
+                    override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
+                        out = screenshotToFrame(screenshot)
+                        latch.countDown()
+                    }
+
+                    override fun onFailure(errorCode: Int) {
+                        latch.countDown()
+                    }
+                },
+            )
+            latch.await(450, TimeUnit.MILLISECONDS)
+        } catch (_: Throwable) {
+            return null
+        }
+        return out
+    }
+
+    private fun screenshotToFrame(result: AccessibilityService.ScreenshotResult): CapturedFrame? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        val hardwareBuffer: HardwareBuffer = try {
+            result.hardwareBuffer
+        } catch (_: Throwable) {
+            return null
+        }
+        try {
+            val colorSpace = result.colorSpace
+            val wrapped = Bitmap.wrapHardwareBuffer(hardwareBuffer, colorSpace) ?: return null
+            val source = if (wrapped.config == Bitmap.Config.HARDWARE) {
+                wrapped.copy(Bitmap.Config.ARGB_8888, false) ?: return null
+            } else {
+                wrapped
+            }
+            val scaled = scaleBitmap(source, CAPTURE_MAX_WIDTH)
+            val outputWidth = scaled.width
+            val outputHeight = scaled.height
+            val ocrText = try {
+                ppOcrRecognizer.recognize(scaled) ?: ""
+            } catch (_: Throwable) {
+                ""
+            }
+            val out = ByteArrayOutputStream()
+            if (!scaled.compress(Bitmap.CompressFormat.JPEG, CAPTURE_JPEG_QUALITY, out)) return null
+            if (scaled !== source) scaled.recycle()
+            if (source !== wrapped) source.recycle()
+            val bytes = out.toByteArray()
+            val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+            return CapturedFrame(
+                width = outputWidth,
+                height = outputHeight,
+                base64Jpeg = encoded,
+                ocrText = ocrText,
+            )
+        } finally {
+            try {
+                hardwareBuffer.close()
+            } catch (_: Throwable) {
+            }
+        }
+    }
+
+    private fun scaleBitmap(source: Bitmap, maxWidth: Int): Bitmap {
+        if (source.width <= maxWidth || source.width <= 0 || source.height <= 0) return source
+        val ratio = maxWidth.toFloat() / source.width.toFloat()
+        val dstWidth = maxWidth
+        val dstHeight = (source.height * ratio).toInt().coerceAtLeast(1)
+        return Bitmap.createScaledBitmap(source, dstWidth, dstHeight, true)
+    }
+
+    private fun maybeLogOcrTextChange(text: String) {
+        val normalized = text.trim()
+        if (normalized.isEmpty() || normalized == lastLoggedOcrText) return
+        lastLoggedOcrText = normalized
+        Logger.i("PPOCR changed: ${normalized.take(200)}", tag = "LanBotOCR")
+    }
+
     private fun extractNotificationTitle(event: AccessibilityEvent): String? {
         val notification = event.parcelableData as? android.app.Notification ?: return null
         val title = notification.extras?.getCharSequence(android.app.Notification.EXTRA_TITLE)?.toString()
         return title?.trim()?.takeIf { it.isNotEmpty() }
     }
 
-    private fun scheduleFollowUp(delayMs: Long, eventType: Int, force: Boolean, attempt: Int = 1) {
+    private fun scheduleFollowUp(delayMs: Long, force: Boolean, attempt: Int = 1) {
         val delay = delayMs.coerceAtLeast(80L)
         val runnable = Runnable {
             pendingFollowUp = null
-            val nextResult = emitSnapshot(eventType, force)
+            val nextResult = emitSnapshot(force)
             when (nextResult.status) {
                 SnapshotStatus.SENT -> Unit
-                SnapshotStatus.NO_ROOT -> if (force && attempt < 3) {
-                    scheduleFollowUp(nextResult.retryDelayMs, eventType, force = true, attempt = attempt + 1)
-                }
                 SnapshotStatus.THROTTLED -> if (!force && attempt < 2) {
-                    scheduleFollowUp(nextResult.retryDelayMs, eventType, force = false, attempt = attempt + 1)
+                    scheduleFollowUp(nextResult.retryDelayMs, force = false, attempt = attempt + 1)
                 }
             }
         }
@@ -237,27 +328,11 @@ class MyAccessibilityService : AccessibilityService() {
         handler.postDelayed(runnable, delay)
     }
 
-    private fun tryCollectText(root: AccessibilityNodeInfo, maxNodes: Int = 200, maxLen: Int = 2000): String {
-        val sb = StringBuilder()
-        var count = 0
-        fun walk(node: AccessibilityNodeInfo?) {
-            if (node == null || count >= maxNodes || sb.length >= maxLen) return
-            count++
-            val t = node.text?.toString()
-            val d = node.contentDescription?.toString()
-            if (!t.isNullOrBlank()) sb.appendLine(t.trim())
-            if (!d.isNullOrBlank()) sb.appendLine(d.trim())
-            for (i in 0 until node.childCount) {
-                walk(node.getChild(i))
-                if (count >= maxNodes || sb.length >= maxLen) break
-            }
-        }
-        walk(root)
-        return sb.toString().trim()
-    }
-
     companion object {
         private const val SNAPSHOT_THROTTLE_MS = 800L
+        private const val SCREEN_CAPTURE_THROTTLE_MS = 2200L
+        private const val CAPTURE_JPEG_QUALITY = 55
+        private const val CAPTURE_MAX_WIDTH = 960
         const val ACTION_SNAPSHOT = "com.ws.wx_server.ACC_SNAPSHOT"
         const val ACTION_CONNECTED = "com.ws.wx_server.ACC_CONNECTED"
         const val ACTION_DISCONNECTED = "com.ws.wx_server.ACC_DISCONNECTED"
@@ -266,5 +341,6 @@ class MyAccessibilityService : AccessibilityService() {
         const val EXTRA_CLS = "cls"
         const val EXTRA_WECHAT_JSON = "wechat_json"
         const val EXTRA_STATE_JSON = "state_json"
+        const val EXTRA_CAPTURE_JSON = "capture_json"
     }
 }

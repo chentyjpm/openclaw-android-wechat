@@ -4,6 +4,7 @@ import com.ws.wx_server.apps.wechat.WeChatMessage
 import com.ws.wx_server.apps.wechat.WeChatSpec
 import com.ws.wx_server.link.http.ChatMessage
 import com.ws.wx_server.link.http.ClientEnvelope
+import com.ws.wx_server.link.http.CaptureFrame
 import com.ws.wx_server.link.http.WeChatMessages
 import com.ws.wx_server.link.http.WeChatState
 import com.ws.wx_server.link.http.WindowStateEvent
@@ -61,6 +62,7 @@ object TaskBridge {
         editable: Int,
         recyclers: Int,
         wechat: WeChatStatePayload? = null,
+        capture: CapturePayload? = null,
     ) {
         val event = WindowStateEvent(
             pkg = pkg,
@@ -72,6 +74,7 @@ object TaskBridge {
             editable = editable.coerceAtLeast(0),
             recyclers = recyclers.coerceAtLeast(0),
             wechat = wechat?.let { buildWeChatState(it) },
+            capture = capture?.let { buildCaptureFrame(it) },
         )
 
         val env = ClientEnvelope(windowState = event)
@@ -100,6 +103,15 @@ object TaskBridge {
         val messages: List<WeChatMessage>? = null,
     )
 
+    data class CapturePayload(
+        val mode: String,
+        val mime: String,
+        val width: Int,
+        val height: Int,
+        val tsMs: Long,
+        val dataBase64: String,
+    )
+
     private fun WeChatScreen.toWire(): String = when (this) {
         WeChatScreen.HOME -> "home"
         WeChatScreen.CHAT -> "chat"
@@ -120,6 +132,17 @@ object TaskBridge {
             title = payload.title ?: "",
             isGroup = payload.isGroup,
             messages = messages,
+        )
+    }
+
+    private fun buildCaptureFrame(payload: CapturePayload): CaptureFrame {
+        return CaptureFrame(
+            mode = payload.mode,
+            mime = payload.mime,
+            width = payload.width,
+            height = payload.height,
+            tsMs = payload.tsMs,
+            dataBase64 = payload.dataBase64,
         )
     }
 

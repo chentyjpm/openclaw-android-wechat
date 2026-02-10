@@ -70,6 +70,7 @@ data class WindowStateEvent(
     val editable: Int = 0,
     val recyclers: Int = 0,
     val wechat: WeChatState? = null,
+    val capture: CaptureFrame? = null,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("pkg", pkg)
@@ -81,6 +82,25 @@ data class WindowStateEvent(
         put("editable", editable)
         put("recyclers", recyclers)
         wechat?.let { put("wechat", it.toJson()) }
+        capture?.let { put("capture", it.toJson()) }
+    }
+}
+
+data class CaptureFrame(
+    val mode: String = "",
+    val mime: String = "image/jpeg",
+    val width: Int = 0,
+    val height: Int = 0,
+    val tsMs: Long = 0L,
+    val dataBase64: String = "",
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("mode", mode)
+        put("mime", mime)
+        put("width", width)
+        put("height", height)
+        put("ts_ms", tsMs)
+        put("data_base64", dataBase64)
     }
 }
 

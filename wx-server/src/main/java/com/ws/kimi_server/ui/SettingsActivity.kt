@@ -6,6 +6,8 @@ import android.widget.CheckBox
 import android.widget.EditText
 import androidx.appcompat.app.AppCompatActivity
 import com.ws.wx_server.R
+import com.ws.wx_server.link.CAPTURE_STRATEGY_NODE_ONLY
+import com.ws.wx_server.link.CAPTURE_STRATEGY_SCREEN_FIRST
 import com.ws.wx_server.link.LinkConfigStore
 import com.ws.wx_server.link.ServerConfig
 
@@ -20,6 +22,7 @@ class SettingsActivity : AppCompatActivity() {
         val tls = findViewById<CheckBox>(R.id.cb_tls)
         val debug = findViewById<CheckBox>(R.id.cb_debug)
         val debugXml = findViewById<CheckBox>(R.id.cb_debug_xml)
+        val captureScreen = findViewById<CheckBox>(R.id.cb_capture_screen)
         val save = findViewById<Button>(R.id.btn_save)
 
         val cfg = LinkConfigStore.load(this)
@@ -29,6 +32,7 @@ class SettingsActivity : AppCompatActivity() {
         tls.isChecked = cfg.useTls
         debug.isChecked = cfg.debugEvents
         debugXml.isChecked = cfg.debugXml
+        captureScreen.isChecked = cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST
 
         save.setOnClickListener {
             val p = port.text.toString().toIntOrNull() ?: cfg.port
@@ -40,7 +44,8 @@ class SettingsActivity : AppCompatActivity() {
                 keepAliveSeconds = keepAliveSeconds,
                 useTls = tls.isChecked,
                 debugEvents = debug.isChecked,
-                debugXml = debugXml.isChecked
+                debugXml = debugXml.isChecked,
+                captureStrategy = if (captureScreen.isChecked) CAPTURE_STRATEGY_SCREEN_FIRST else CAPTURE_STRATEGY_NODE_ONLY
             )
             LinkConfigStore.save(this, newCfg)
             finish()

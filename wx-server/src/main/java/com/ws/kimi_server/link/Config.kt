@@ -3,6 +3,9 @@ package com.ws.wx_server.link
 import android.content.Context
 import android.content.SharedPreferences
 
+const val CAPTURE_STRATEGY_SCREEN_FIRST = "screen_first"
+const val CAPTURE_STRATEGY_NODE_ONLY = "node_only"
+
 data class ServerConfig(
     val host: String = "127.0.0.1",
     val port: Int = 18790,
@@ -10,6 +13,7 @@ data class ServerConfig(
     val useTls: Boolean = false,
     val debugEvents: Boolean = false,
     val debugXml: Boolean = false,
+    val captureStrategy: String = CAPTURE_STRATEGY_SCREEN_FIRST,
 )
 
 object LinkConfigStore {
@@ -20,6 +24,7 @@ object LinkConfigStore {
     private const val K_TLS = "tls"
     private const val K_DEBUG_EVENTS = "debug"
     private const val K_DEBUG_XML = "debug_xml"
+    private const val K_CAPTURE_STRATEGY = "capture_strategy"
 
     fun load(ctx: Context): ServerConfig {
         val sp = prefs(ctx)
@@ -31,6 +36,9 @@ object LinkConfigStore {
             useTls = sp.getBoolean(K_TLS, def.useTls),
             debugEvents = sp.getBoolean(K_DEBUG_EVENTS, def.debugEvents),
             debugXml = sp.getBoolean(K_DEBUG_XML, def.debugXml),
+            captureStrategy = sp.getString(K_CAPTURE_STRATEGY, def.captureStrategy)
+                ?.takeIf { it == CAPTURE_STRATEGY_SCREEN_FIRST || it == CAPTURE_STRATEGY_NODE_ONLY }
+                ?: def.captureStrategy,
         )
     }
 
@@ -42,6 +50,7 @@ object LinkConfigStore {
             .putBoolean(K_TLS, cfg.useTls)
             .putBoolean(K_DEBUG_EVENTS, cfg.debugEvents)
             .putBoolean(K_DEBUG_XML, cfg.debugXml)
+            .putString(K_CAPTURE_STRATEGY, cfg.captureStrategy)
             .apply()
     }
 

@@ -63,6 +63,12 @@
             android:layout_height="wrap_content"
             android:text="调试XML" />
 
+        <CheckBox
+            android:id="@+id/cb_capture_screen"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="使用无障碍录屏采集（推荐）" />
+
         <Button
             android:id="@+id/btn_save"
             android:layout_width="match_parent"
