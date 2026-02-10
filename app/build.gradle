@@ -38,7 +38,7 @@ android {
 
         implementation project(":terminal-view")
         implementation project(":termux-shared")
-        implementation project(":huixiangdou")
+        implementation project(":wx-server")
     }
 
     defaultConfig {
@@ -49,6 +49,11 @@ android {
 
         if (appVersionName) versionName = appVersionName
         validateVersionName(versionName)
+
+        // Only support arm64-v8a (aarch64).
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
 
         buildConfigField "String", "TERMUX_PACKAGE_VARIANT", "\"" + project.ext.packageVariant + "\"" // Used by TermuxApplication class
 
@@ -67,14 +72,12 @@ android {
             }
         }
 
-        splits {
-            abi {
-                enable ((gradle.startParameter.taskNames.any { it.contains("Debug") } && splitAPKsForDebugBuilds == "1") ||
-                    (gradle.startParameter.taskNames.any { it.contains("Release") } && splitAPKsForReleaseBuilds == "1"))
-                reset ()
-                include 'x86', 'x86_64', 'armeabi-v7a', 'arm64-v8a'
-                universalApk true
-            }
+    }
+
+    sourceSets {
+        main {
+            // Generated assets (optional) for bundling large files without committing them to git.
+            assets.srcDirs += ["$buildDir/generated/openclawAssets"]
         }
     }
 
@@ -152,6 +155,19 @@ dependencies {
     coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:1.1.5"
 }
 
+def openclawBundledDebianRootfs = System.getenv("OPENCLAW_BUNDLED_DEBIAN_ROOTFS") ?: ""
+tasks.register("generateOpenclawAssets", Copy) {
+    def outDir = file("$buildDir/generated/openclawAssets/openclaw/bundles")
+    from(openclawBundledDebianRootfs)
+    into(outDir)
+    rename { "debian-rootfs.tar.gz" }
+    onlyIf {
+        openclawBundledDebianRootfs && file(openclawBundledDebianRootfs).exists()
+    }
+}
+
+preBuild.dependsOn(tasks.named("generateOpenclawAssets"))
+
 task versionName {
     doLast {
         print android.defaultConfig.versionName
@@ -222,15 +238,9 @@ task downloadBootstraps() {
         if (packageVariant == "apt-android-7") {
             def version = "2022.04.28-r5" + "+" + packageVariant
             downloadBootstrap("aarch64", "4a51a7eb209fe82efc24d52e3cccc13165f27377290687cb82038cbd8e948430", version)
-            downloadBootstrap("arm", "6459a786acbae50d4c8a36fa1c3de6a4dd2d482572f6d54f73274709bd627325", version)
-            downloadBootstrap("i686", "919d212b2f19e08600938db4079e794e947365022dbfd50ac342c50fcedcd7be", version)
-            downloadBootstrap("x86_64", "61b02fdc03ea4f5d9da8d8cf018013fdc6659e6da6cbf44e9b24d1c623580b89", version)
         } else if (packageVariant == "apt-android-5") {
             def version = "2022.04.28-r6" + "+" + packageVariant
             downloadBootstrap("aarch64", "913609d439415c828c5640be1b0561467e539cb1c7080662decaaca2fb4820e7", version)
-            downloadBootstrap("arm", "26bfb45304c946170db69108e5eb6e3641aad751406ce106c80df80cad2eccf8", version)
-            downloadBootstrap("i686", "46dcfeb5eef67ba765498db9fe4c50dc4690805139aa0dd141a9d8ee0693cd27", version)
-            downloadBootstrap("x86_64", "615b590679ee6cd885b7fd2ff9473c845e920f9b422f790bb158c63fe42b8481", version)
         } else {
             throw new GradleException("Unsupported TERMUX_PACKAGE_VARIANT \"" + packageVariant + "\"")
         }

@@ -14,6 +14,7 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.os.SystemClock;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -49,6 +50,13 @@ import com.termux.terminal.TerminalEmulator;
 import com.termux.terminal.TerminalSession;
 import com.termux.terminal.TerminalSessionClient;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Locale;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -106,6 +114,19 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
     boolean mWantsToStop = false;
 
     private static final String LOG_TAG = "TermuxService";
+
+    /** Prevent repeated script execution due to Activity recreation/bind storms. */
+    private long mLastStartupScriptRunElapsedRealtime;
+
+    private static final String OPENCLAW_STARTUP_SESSION_NAME = "openclaw-startup";
+
+    private static final int STARTUP_SESSION_WRITE_RETRY_DELAY_MS = 200;
+    private static final int STARTUP_SESSION_WRITE_MAX_RETRIES = 50; // 10 seconds
+
+    private static final String STARTUP_SCRIPT_MANAGED_MARKER_PREFIX = "# OPENCLAW-MANAGED-SHA256: ";
+
+    private static final String OPENCLAW_BUNDLED_DEBIAN_ROOTFS_ASSET_PATH = "openclaw/bundles/debian-rootfs.tar.gz";
+    private static final String OPENCLAW_BUNDLED_DEBIAN_ROOTFS_OUTPUT_PATH = TermuxConstants.TERMUX_FILES_DIR_PATH + "/openclaw/bundles/debian-rootfs.tar.gz";
 
     @Override
     public void onCreate() {
@@ -568,6 +589,210 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
             executablePath, arguments, stdin, workingDirectory, Runner.TERMINAL_SESSION.getName(), isFailSafe);
         executionCommand.shellName = sessionName;
         return createTermuxSession(executionCommand);
+    }
+
+    /**
+     * Run Termux startup script if present.
+     *
+     * If {@code ~/.termux/startup.sh} exists, then it will be executed automatically in a background
+     * {@link AppShell} when Termux is opened.
+     *
+     * The script is executed with {@code bash -lc} so that the standard Termux login environment is
+     * applied.
+     */
+    /**
+     * Run Termux startup script in a terminal session so the user can see output.
+     *
+     * This will create a dedicated session (if missing) and write a command to run the script.
+     *
+     * @param workingDirectory The working directory to use if a new session must be created.
+     * @return Returns the {@link TermuxSession} used for running the startup script, or {@code null}
+     * if startup script could not be run.
+     */
+    @Nullable
+    public synchronized TermuxSession runStartupScriptInTerminalSessionIfNeeded(@NonNull String workingDirectory) {
+        // Debounce: avoid repeated execution on config changes/activity recreation.
+        long now = SystemClock.elapsedRealtime();
+        if (now - mLastStartupScriptRunElapsedRealtime < 5000) return null;
+
+        final File startupScriptFile = new File(TermuxConstants.TERMUX_DATA_HOME_DIR_PATH, "startup.sh");
+        ensureBundledDebianRootfsCopiedIfPresent();
+        ensureDefaultStartupScriptUpToDate(startupScriptFile);
+        if (!startupScriptFile.isFile()) return null;
+
+        final String bashPath = TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH + "/bash";
+        if (!new File(bashPath).isFile()) {
+            Logger.logWarn(LOG_TAG, "Ignoring startup script since bash was not found at \"" + bashPath + "\"");
+            appendStartupJavaLogLine("SKIP: bash missing at " + bashPath);
+            return null;
+        }
+
+        TermuxSession startupSession = getTermuxSessionForShellName(OPENCLAW_STARTUP_SESSION_NAME);
+        if (startupSession == null) {
+            startupSession = createTermuxSession(null, null, null, workingDirectory, false, OPENCLAW_STARTUP_SESSION_NAME);
+            if (startupSession == null) {
+                appendStartupJavaLogLine("FAIL: createTermuxSession returned null for " + OPENCLAW_STARTUP_SESSION_NAME);
+                return null;
+            }
+        }
+
+        mLastStartupScriptRunElapsedRealtime = now;
+        appendStartupJavaLogLine("START: " + startupScriptFile.getAbsolutePath() + " session=" + OPENCLAW_STARTUP_SESSION_NAME);
+
+        // Run the script in bash so the user sees output in the terminal session.
+        TerminalSession terminalSession = startupSession.getTerminalSession();
+        String runCommand = "echo \"[openclaw] running ~/.termux/startup.sh\"; bash \"$HOME/.termux/startup.sh\"\n";
+        writeCommandToTerminalSessionWhenReady(terminalSession, runCommand, 0);
+
+        return startupSession;
+    }
+
+    private void writeCommandToTerminalSessionWhenReady(@NonNull TerminalSession terminalSession, @NonNull String command, int retryCount) {
+        if (terminalSession.getPid() > 0) {
+            byte[] bytes = command.getBytes(StandardCharsets.UTF_8);
+            terminalSession.write(bytes, 0, bytes.length);
+            appendStartupJavaLogLine("WRITE: sent command to session pid=" + terminalSession.getPid());
+            return;
+        }
+
+        if (retryCount >= STARTUP_SESSION_WRITE_MAX_RETRIES) {
+            appendStartupJavaLogLine("FAIL: terminal session pid not ready after retries, command not sent");
+            return;
+        }
+
+        mHandler.postDelayed(() -> writeCommandToTerminalSessionWhenReady(terminalSession, command, retryCount + 1),
+            STARTUP_SESSION_WRITE_RETRY_DELAY_MS);
+    }
+
+    private void ensureDefaultStartupScriptUpToDate(@NonNull File startupScriptFile) {
+        try {
+            File parent = startupScriptFile.getParentFile();
+            if (parent == null) return;
+            //noinspection ResultOfMethodCallIgnored
+            parent.mkdirs();
+
+            byte[] resourceBytes = readAllBytesFromRawResource(R.raw.startup_openclaw);
+            if (resourceBytes == null || resourceBytes.length == 0) return;
+
+            String currentHash = sha256Hex(resourceBytes);
+            boolean shouldWrite;
+            if (!startupScriptFile.isFile()) {
+                shouldWrite = true;
+            } else {
+                String existingHash = getManagedStartupScriptHashIfPresent(startupScriptFile);
+                // Only overwrite if the file was previously managed by us.
+                shouldWrite = existingHash != null && !existingHash.equals(currentHash);
+            }
+
+            if (!shouldWrite) return;
+
+            try (FileOutputStream out = new FileOutputStream(startupScriptFile)) {
+                String header = "# This file is auto-managed by OpenClaw Termux build.\n" +
+                    "# To disable auto-updates, remove the \"" + STARTUP_SCRIPT_MANAGED_MARKER_PREFIX.trim() + "\" line.\n" +
+                    STARTUP_SCRIPT_MANAGED_MARKER_PREFIX + currentHash + "\n\n";
+                out.write(header.getBytes(StandardCharsets.UTF_8));
+                out.write(resourceBytes);
+            }
+
+            // Best-effort: make it user-executable for those who want to run it manually.
+            //noinspection ResultOfMethodCallIgnored
+            startupScriptFile.setExecutable(true, false);
+
+            Logger.logInfo(LOG_TAG, "Wrote managed startup script at \"" + startupScriptFile.getAbsolutePath() + "\"");
+            appendStartupJavaLogLine("WRITE_MANAGED: " + startupScriptFile.getAbsolutePath());
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to create default startup script", e);
+            appendStartupJavaLogLine("ERROR: default script create failed: " + e.getMessage());
+        }
+    }
+
+    private void ensureBundledDebianRootfsCopiedIfPresent() {
+        try {
+            File outFile = new File(OPENCLAW_BUNDLED_DEBIAN_ROOTFS_OUTPUT_PATH);
+            if (outFile.isFile() && outFile.length() > 0) return;
+
+            File parent = outFile.getParentFile();
+            if (parent == null) return;
+            //noinspection ResultOfMethodCallIgnored
+            parent.mkdirs();
+
+            try (InputStream in = getAssets().open(OPENCLAW_BUNDLED_DEBIAN_ROOTFS_ASSET_PATH);
+                 FileOutputStream out = new FileOutputStream(outFile)) {
+                byte[] buffer = new byte[8192];
+                int read;
+                while ((read = in.read(buffer)) != -1) {
+                    out.write(buffer, 0, read);
+                }
+            }
+
+            Logger.logInfo(LOG_TAG, "Copied bundled Debian rootfs to \"" + outFile.getAbsolutePath() + "\"");
+            appendStartupJavaLogLine("BUNDLE_COPY: " + outFile.getAbsolutePath());
+        } catch (Exception e) {
+            // Asset likely not present; ignore silently.
+        }
+    }
+
+    @Nullable
+    private byte[] readAllBytesFromRawResource(int resId) {
+        try (InputStream in = getResources().openRawResource(resId)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            int offset = 0;
+            byte[] data = new byte[0];
+            while ((read = in.read(buffer)) != -1) {
+                byte[] newData = new byte[offset + read];
+                System.arraycopy(data, 0, newData, 0, offset);
+                System.arraycopy(buffer, 0, newData, offset, read);
+                data = newData;
+                offset += read;
+            }
+            return data;
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to read raw resource bytes", e);
+            return null;
+        }
+    }
+
+    @Nullable
+    private String getManagedStartupScriptHashIfPresent(@NonNull File startupScriptFile) {
+        try (FileInputStream in = new FileInputStream(startupScriptFile)) {
+            byte[] buffer = new byte[4096];
+            int read = in.read(buffer);
+            if (read <= 0) return null;
+            String head = new String(buffer, 0, read, StandardCharsets.UTF_8);
+            int idx = head.indexOf(STARTUP_SCRIPT_MANAGED_MARKER_PREFIX);
+            if (idx < 0) return null;
+            int start = idx + STARTUP_SCRIPT_MANAGED_MARKER_PREFIX.length();
+            int end = head.indexOf('\n', start);
+            if (end < 0) end = head.length();
+            String hash = head.substring(start, end).trim();
+            return hash.isEmpty() ? null : hash;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @NonNull
+    private static String sha256Hex(@NonNull byte[] bytes) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(bytes);
+        StringBuilder sb = new StringBuilder(hash.length * 2);
+        for (byte b : hash) sb.append(String.format(Locale.US, "%02x", b));
+        return sb.toString();
+    }
+
+    private void appendStartupJavaLogLine(@NonNull String line) {
+        try {
+            File dir = new File(TermuxConstants.TERMUX_DATA_HOME_DIR_PATH);
+            //noinspection ResultOfMethodCallIgnored
+            dir.mkdirs();
+            File logFile = new File(dir, "startup_java.log");
+            try (FileOutputStream out = new FileOutputStream(logFile, true)) {
+                out.write((System.currentTimeMillis() + " " + line + "\n").getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (Exception e) {
+            // Ignore logging failures.
+        }
     }
 
     /** Create a {@link TermuxSession}. */

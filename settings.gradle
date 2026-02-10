@@ -1,1 +1,1 @@
-include ':app', ':termux-shared', ':terminal-emulator', ':terminal-view', ':huixiangdou'
+include ':app', ':termux-shared', ':terminal-emulator', ':terminal-view', ':wx-server'
