@@ -64,14 +64,32 @@ class SendEmojiService : AccessibilityService() {
     private var groupname: String = ""
     private var lastusername:String = ""
     private var lastcontent:String = ""
+    private var lastPackageName: String = ""
     private var firststart = 0L
     private var send_throttle = NoDoubleClick(4000)
+    private var poll_throttle = NoDoubleClick(5000)
     private val WECHAT_PACKAGE = "com.tencent.mm"
     private lateinit var executor: ExecutorService
     private lateinit var httpclient: OkHttpClient
     private var handler = Handler(Looper.getMainLooper())
     private var send_text:String = ""
     private var asked_questions: ArrayList<String> = ArrayList()
+    @Volatile private var pollInFlight: Boolean = false
+
+    private val pollRunnable = object : Runnable {
+        override fun run() {
+            try {
+                if (lastPackageName == WECHAT_PACKAGE && rootInActiveWindow != null) {
+                    refreshContextFromWindow()
+                    if (poll_throttle.pass()) {
+                        parseRecvMessage()
+                    }
+                }
+            } finally {
+                handler.postDelayed(this, 5000)
+            }
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
@@ -83,10 +101,12 @@ class SendEmojiService : AccessibilityService() {
         LogUtils.d("onServiceConnected")
         httpclient = OkHttpClient()
         executor = Executors.newSingleThreadExecutor();
+        handler.postDelayed(pollRunnable, 5000)
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
+        lastPackageName = event.packageName?.toString() ?: ""
         WechatConstants.setVersion(getAppVersionName(baseContext, WECHAT_PACKAGE))
 
         when (event.eventType) {
@@ -146,35 +166,7 @@ class SendEmojiService : AccessibilityService() {
                         while (retry > 0){
                             retry -= 1
 
-                            if (!send_text.equals("")) {
-                                var input_and_send = send_text
-                                send_text = ""
-                                // got set send text
-                                Log.d("msg will send", input_and_send)
-                                handler.post {
-                                    var nodeInfo = rootInActiveWindow.findAccessibilityNodeInfosByViewId(RES_ID_EDIT_TEXT)
-                                    if (nodeInfo.size > 0) {
-                                        for (et in nodeInfo) {
-                                            if (et.className == EditText::class.java.name) {
-                                                var args = Bundle()
-                                                args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, input_and_send)
-                                                et.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-                                            }
-                                        }
-                                    }
-                                }
-                                // sleep
-                                Thread.sleep(2000)
-                                // then click send button
-                                if (!send_throttle.pass()) {
-                                    Log.d("msg", "click too more")
-                                    return
-                                }
-                                handler.post {
-                                    var do_send = click_send()
-                                    Log.d("msg", "action send?")
-                                    Log.d("msg", do_send.toString())
-                                }
+                            if (flushPendingSendTextIfAny()) {
                                 break
                             }
                             parseRecvMessage()
@@ -198,6 +190,10 @@ class SendEmojiService : AccessibilityService() {
 
         var sb: StringBuilder = StringBuilder()
         for (item in reply.data) {
+            if (item.req.query.type == "push") {
+                sb.append(item.rsp.text)
+                continue
+            }
             if (debug) {
                 sb.append(item.req.query.content)
                 sb.append("\n---\n")
@@ -215,6 +211,41 @@ class SendEmojiService : AccessibilityService() {
         return sb.toString()
     }
 
+    private fun flushPendingSendTextIfAny(): Boolean {
+        if (send_text.isEmpty()) return false
+
+        val input_and_send = send_text
+        send_text = ""
+
+        Log.d("msg will send", input_and_send)
+        handler.post {
+            val nodeInfo = rootInActiveWindow.findAccessibilityNodeInfosByViewId(RES_ID_EDIT_TEXT)
+            if (nodeInfo.size > 0) {
+                for (et in nodeInfo) {
+                    if (et.className == EditText::class.java.name) {
+                        val args = Bundle()
+                        args.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, input_and_send)
+                        et.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                    }
+                }
+            }
+        }
+
+        Thread.sleep(2000)
+
+        if (!send_throttle.pass()) {
+            Log.d("msg", "click too more")
+            return false
+        }
+
+        handler.post {
+            val do_send = click_send()
+            Log.d("msg", "action send?")
+            Log.d("msg", do_send.toString())
+        }
+        return true
+    }
+
     private fun parseRecvMessage() {
         // poll message from server
         var userInfo = UserInfo(query_id = groupname, groupname = groupname, username = lastusername, Query(type = "poll", content = ""))
@@ -227,9 +258,17 @@ class SendEmojiService : AccessibilityService() {
         if (!send_text.equals("")) {
             return
         }
+        if (pollInFlight) {
+            return
+        }
+        pollInFlight = true
 
         executor.execute {
-            val client = OkHttpClient()
+            val client = OkHttpClient.Builder()
+                .connectTimeout(20, TimeUnit.SECONDS)
+                .writeTimeout(40, TimeUnit.SECONDS)
+                .readTimeout(70, TimeUnit.SECONDS)
+                .build()
             // Define the JSON media type
             val JSON :MediaType? = "application/json; charset=utf-8".toMediaTypeOrNull()
 
@@ -245,25 +284,37 @@ class SendEmojiService : AccessibilityService() {
             client.newCall(request).enqueue(object : Callback{
                 override fun onFailure(call: Call, e: IOException) {
                     Log.e("msg", e.toString())
+                    pollInFlight = false
                 }
 
                 override fun onResponse(call: Call, response: Response) {
-                    Log.d("msg resp code", response.code.toString())
+                    try {
+                        Log.d("msg resp code", response.code.toString())
 
-                    if (response.isSuccessful) {
-                        var reply_text: String = response.body?.string() ?: "response.body?"
-                        Log.d("msg parse recv", reply_text)
-                        try {
-                            var reply: ChatResponse = Gson().fromJson(reply_text, ChatResponse::class.java)
-                            if (reply.data.size > 0){
-                                send_text = build_reply_text(reply)
+                        if (response.isSuccessful) {
+                            var reply_text: String = response.body?.string() ?: "response.body?"
+                            Log.d("msg parse recv", reply_text)
+                            try {
+                                var reply: ChatResponse = Gson().fromJson(reply_text, ChatResponse::class.java)
+                                if (reply.data.size > 0){
+                                    send_text = build_reply_text(reply)
+                                    executor.execute {
+                                        try {
+                                            flushPendingSendTextIfAny()
+                                        } catch (e: Exception) {
+                                            Log.e("msg", e.toString())
+                                        }
+                                    }
+                                }
+                            } catch (e: Exception){
+                                Log.e("msg", e.toString())
                             }
-                        } catch (e: Exception){
-                            Log.e("msg", e.toString())
-                        }
 
-                    } else {
-                        Log.e("msg", response.toString())
+                        } else {
+                            Log.e("msg", response.toString())
+                        }
+                    } finally {
+                        pollInFlight = false
                     }
                 }
             })
@@ -377,8 +428,29 @@ class SendEmojiService : AccessibilityService() {
             }
         }
         asked_questions.add(lastcontent)
-        Toast.makeText(application.applicationContext, lastcontent, Toast.LENGTH_SHORT)
+        Toast.makeText(application.applicationContext, lastcontent, Toast.LENGTH_SHORT).show()
         chat_with_server()
+    }
+
+    private fun refreshContextFromWindow() {
+        if (rootInActiveWindow == null) return
+        val nodeInfo = rootInActiveWindow.findAccessibilityNodeInfosByViewId(RES_ID_GROUP_NAME)
+        for (tv in nodeInfo) {
+            if (tv.className == TextView::class.java.name) {
+                val content = tv.text.toString()
+                if (content.isNotEmpty()) {
+                    groupname = content
+                }
+                break
+            }
+        }
+        parseWindow()
+
+        // single chat fallback
+        val usernames = rootInActiveWindow.findAccessibilityNodeInfosByViewId(RES_ID_USER_NAME)
+        if (usernames.size < 1 && groupname.isNotEmpty()) {
+            lastusername = groupname
+        }
     }
 
     private fun click_send(): Boolean {
@@ -399,5 +471,6 @@ class SendEmojiService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         LogUtils.d("onDestroy")
+        handler.removeCallbacks(pollRunnable)
     }
 }
