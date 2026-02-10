@@ -41,6 +41,18 @@ set DEFAULT_JVM_OPTS="-Xmx64m" "-Xms64m"
 @rem Find java.exe
 if defined JAVA_HOME goto findJavaFromJavaHome
 
+@rem Fallback to Android Studio embedded JBR/JRE if JAVA_HOME is not set.
+set "ANDROID_STUDIO_JBR=C:\Program Files\Android\Android Studio\jbr"
+if exist "%ANDROID_STUDIO_JBR%\bin\java.exe" (
+    set "JAVA_HOME=%ANDROID_STUDIO_JBR%"
+    goto findJavaFromJavaHome
+)
+set "ANDROID_STUDIO_JRE=C:\Program Files\Android\Android Studio\jre"
+if exist "%ANDROID_STUDIO_JRE%\bin\java.exe" (
+    set "JAVA_HOME=%ANDROID_STUDIO_JRE%"
+    goto findJavaFromJavaHome
+)
+
 set JAVA_EXE=java.exe
 %JAVA_EXE% -version >NUL 2>&1
 if %ERRORLEVEL% equ 0 goto execute

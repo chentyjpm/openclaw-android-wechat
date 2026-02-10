@@ -105,7 +105,6 @@ export const wechatuiPlugin: ChannelPlugin<ResolvedWeChatUiAccount> = {
         accountId: ctx.accountId,
         runtime: ctx.runtime,
         abortSignal: ctx.abortSignal,
-        log: ctx.log,
         statusSink: (patch) => ctx.setStatus({ accountId: ctx.accountId, ...patch }),
       });
     },

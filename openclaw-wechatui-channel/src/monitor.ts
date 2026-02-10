@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ChannelLogSink, OpenClawConfig } from "openclaw/plugin-sdk";
+import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { logInboundDrop } from "openclaw/plugin-sdk";
 import type { ResolvedWeChatUiAccount } from "./accounts.js";
 import { resolveWeChatUiAccount } from "./accounts.js";
@@ -26,7 +26,6 @@ type WebhookTarget = {
   core: WeChatUiCoreRuntime;
   path: string;
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
-  log?: ChannelLogSink;
 };
 
 type InboundPayload = {
@@ -323,7 +322,6 @@ export async function monitorWeChatUiProvider(params: {
   abortSignal: AbortSignal;
   runtime: WeChatUiRuntimeEnv;
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
-  log?: ChannelLogSink;
 }): Promise<() => void> {
   const core = getWeChatUiRuntime();
   const account = resolveWeChatUiAccount({ cfg: params.cfg, accountId: params.accountId });
@@ -339,7 +337,6 @@ export async function monitorWeChatUiProvider(params: {
     core,
     path: webhookPath,
     statusSink: params.statusSink,
-    log: params.log,
   });
   const unregisterAndroid = registerHuixiangdouBridgeTarget({
     account,
@@ -348,7 +345,6 @@ export async function monitorWeChatUiProvider(params: {
     core,
     path: androidWebhookPath,
     statusSink: params.statusSink,
-    log: params.log,
   });
   const unregisterAndroidPush = registerHuixiangdouBridgeTarget({
     account,
@@ -357,7 +353,6 @@ export async function monitorWeChatUiProvider(params: {
     core,
     path: androidPushPath,
     statusSink: params.statusSink,
-    log: params.log,
   });
 
   params.runtime.log?.(`[${account.accountId}] [wechatui] webhook listening on ${webhookPath}`);

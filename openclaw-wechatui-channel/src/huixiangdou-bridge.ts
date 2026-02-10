@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { ChannelLogSink, OpenClawConfig } from "openclaw/plugin-sdk";
+import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import type { ResolvedWeChatUiAccount } from "./accounts.js";
 import { WeChatUiConfigSchema } from "./config-schema.js";
 import { getWeChatUiRuntime } from "./runtime.js";
@@ -18,7 +18,6 @@ type HuixiangdouBridgeTarget = {
   core: WeChatUiCoreRuntime;
   path: string;
   statusSink?: (patch: { lastInboundAt?: number; lastOutboundAt?: number }) => void;
-  log?: ChannelLogSink;
 };
 
 type Query = { type?: string; content?: string };

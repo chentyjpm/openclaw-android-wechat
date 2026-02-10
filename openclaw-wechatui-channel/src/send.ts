@@ -199,5 +199,4 @@ export async function sendWeChatUiMedia(params: SendMediaParams): Promise<void> 
     await sendWeChatUiText({ cfg: params.cfg, accountId: params.accountId, to, text: params.text });
   }
   return;
-
 }
