@@ -19,7 +19,7 @@
             android:layout_height="16dp"
             android:layout_marginEnd="8dp"
             android:contentDescription="status"
-            android:src="@drawable/kimi_ic_status_off" />
+            android:src="@drawable/openclaw_ic_status_off" />
 
         <TextView
             android:id="@+id/tv_status"
@@ -43,7 +43,7 @@
             android:layout_height="16dp"
             android:layout_marginEnd="8dp"
             android:contentDescription="server_status"
-            android:src="@drawable/kimi_ic_status_off" />
+            android:src="@drawable/openclaw_ic_status_off" />
 
         <TextView
             android:id="@+id/tv_server_status"

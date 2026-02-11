@@ -14,7 +14,7 @@ import com.ws.wx_server.link.ServerConfig
 class SettingsActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.kimi_activity_settings)
+        setContentView(R.layout.openclaw_activity_settings)
 
         val host = findViewById<EditText>(R.id.et_host)
         val port = findViewById<EditText>(R.id.et_port)

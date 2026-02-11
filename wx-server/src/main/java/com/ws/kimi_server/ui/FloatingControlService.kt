@@ -88,7 +88,7 @@ class FloatingControlService : Service() {
         }
         val pending = PendingIntent.getActivity(this, 0, openIntent, pendingFlags)
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
-            .setSmallIcon(R.drawable.kimi_ic_status_on)
+            .setSmallIcon(R.drawable.openclaw_ic_status_on)
             .setContentTitle("LanBot Floating Control")
             .setContentText("Floating window is active")
             .setContentIntent(pending)
@@ -102,7 +102,7 @@ class FloatingControlService : Service() {
         if (rootView != null) return
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
         val inflater = LayoutInflater.from(this)
-        val view = inflater.inflate(R.layout.kimi_float_control, null, false)
+        val view = inflater.inflate(R.layout.openclaw_float_control, null, false)
         val params = buildLayoutParams()
         bindActions(view, params)
         windowManager?.addView(view, params)

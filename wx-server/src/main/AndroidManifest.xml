@@ -15,7 +15,7 @@
         <activity
             android:name="com.ws.wx_server.ui.MainActivity"
             android:exported="false"
-            android:label="@string/kimi_app_name" />
+            android:label="@string/openclaw_app_name" />
 
         <activity
             android:name="com.ws.wx_server.ui.SettingsActivity"
@@ -40,7 +40,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.accessibilityservice"
-                android:resource="@xml/kimi_accessibility_service_config" />
+                android:resource="@xml/openclaw_accessibility_service_config" />
         </service>
 
         <service
@@ -52,7 +52,7 @@
             </intent-filter>
             <meta-data
                 android:name="android.view.im"
-                android:resource="@xml/kimi_input_method" />
+                android:resource="@xml/openclaw_input_method" />
         </service>
 
     </application>

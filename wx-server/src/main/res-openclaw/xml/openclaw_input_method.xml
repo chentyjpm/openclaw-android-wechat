@@ -5,5 +5,5 @@
     <subtype
         android:imeSubtypeLocale="zh_CN"
         android:imeSubtypeMode="keyboard"
-        android:label="@string/kimi_ime_subtype_label" />
+        android:label="@string/openclaw_ime_subtype_label" />
 </input-method>

@@ -1,0 +1,4 @@
+<resources>
+    <string name="openclaw_app_name">OpenClawBot</string>
+    <string name="openclaw_ime_subtype_label">OpenClaw Keyboard</string>
+</resources>

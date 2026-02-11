@@ -512,7 +512,7 @@ class CoreForegroundService : Service() {
         return NotificationCompat.Builder(this, channelId)
             .setContentTitle("LanBot")
             .setContentText(lastNotifText)
-            .setSmallIcon(R.drawable.kimi_ic_status_on)
+            .setSmallIcon(R.drawable.openclaw_ic_status_on)
             .setContentIntent(pendingIntent)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)

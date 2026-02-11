@@ -182,7 +182,7 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
     private static final int CONTEXT_MENU_SHARE_SELECTED_TEXT = 10;
     private static final int CONTEXT_MENU_AUTOFILL_USERNAME = 11;
     private static final int CONTEXT_MENU_AUTOFILL_PASSWORD = 2;
-    private static final int CONTEXT_MENU_KIMI_SERVER_ID = 12;
+    private static final int CONTEXT_MENU_OPENCLAW_SERVER_ID = 12;
     private static final int CONTEXT_MENU_RESET_TERMINAL_ID = 3;
     private static final int CONTEXT_MENU_KILL_PROCESS_ID = 4;
     private static final int CONTEXT_MENU_STYLING_ID = 5;
@@ -676,7 +676,7 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
         menu.add(Menu.NONE, CONTEXT_MENU_TOGGLE_KEEP_SCREEN_ON, Menu.NONE, R.string.action_toggle_keep_screen_on).setCheckable(true).setChecked(mPreferences.shouldKeepScreenOn());
         menu.add(Menu.NONE, CONTEXT_MENU_HELP_ID, Menu.NONE, R.string.action_open_help);
         menu.add(Menu.NONE, CONTEXT_MENU_SETTINGS_ID, Menu.NONE, R.string.action_open_settings);
-        menu.add(Menu.NONE, CONTEXT_MENU_KIMI_SERVER_ID, Menu.NONE, R.string.action_open_kimi_server);
+        menu.add(Menu.NONE, CONTEXT_MENU_OPENCLAW_SERVER_ID, Menu.NONE, R.string.action_open_openclaw_server);
         menu.add(Menu.NONE, CONTEXT_MENU_REPORT_ID, Menu.NONE, R.string.action_report_issue);
     }
 
@@ -725,10 +725,10 @@ public final class TermuxActivity extends AppCompatActivity implements ServiceCo
             case CONTEXT_MENU_SETTINGS_ID:
                 ActivityUtils.startActivity(this, new Intent(this, SettingsActivity.class));
                 return true;
-            case CONTEXT_MENU_KIMI_SERVER_ID: {
-                Intent kimiIntent = new Intent();
-                kimiIntent.setClassName(this, "com.ws.wx_server.ui.MainActivity");
-                ActivityUtils.startActivity(this, kimiIntent);
+            case CONTEXT_MENU_OPENCLAW_SERVER_ID: {
+                Intent openclawIntent = new Intent();
+                openclawIntent.setClassName(this, "com.ws.wx_server.ui.MainActivity");
+                ActivityUtils.startActivity(this, openclawIntent);
                 return true;
             }
             case CONTEXT_MENU_REPORT_ID:

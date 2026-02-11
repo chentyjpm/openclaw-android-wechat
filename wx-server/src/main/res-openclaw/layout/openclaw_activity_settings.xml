@@ -30,7 +30,7 @@
             android:id="@+id/et_port"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="18790"
+            android:hint="18789"
             android:inputType="number" />
 
         <TextView

@@ -53,7 +53,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.kimi_activity_main)
+        setContentView(R.layout.openclaw_activity_main)
 
         statusText = findViewById(R.id.tv_status)
         statusIcon = findViewById(R.id.iv_status)
@@ -102,7 +102,7 @@ class MainActivity : AppCompatActivity() {
             }
             updateServiceStateUi(true)
             serverStatusText.text = "Server: connecting"
-            serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_waiting)
+            serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_waiting)
             CoreForegroundService.start(this)
         }
 
@@ -110,7 +110,7 @@ class MainActivity : AppCompatActivity() {
             updateServiceStateUi(false)
             CoreForegroundService.stop(this)
             serverStatusText.text = "Server: disconnected"
-            serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_off)
+            serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
         }
 
         val am = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
@@ -173,7 +173,7 @@ class MainActivity : AppCompatActivity() {
                     pendingStartServiceAfterGrant = false
                     updateServiceStateUi(true)
                     serverStatusText.text = "Server: connecting"
-                    serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_waiting)
+                    serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_waiting)
                     CoreForegroundService.start(this)
                 }
             } else {
@@ -196,7 +196,7 @@ class MainActivity : AppCompatActivity() {
     private fun updateAccessibilityStatus() {
         val enabled = isAccessibilityEnabled(this)
         statusText.text = if (enabled) "Accessibility: enabled" else "Accessibility: disabled"
-        statusIcon.setImageResource(if (enabled) R.drawable.kimi_ic_status_on else R.drawable.kimi_ic_status_off)
+        statusIcon.setImageResource(if (enabled) R.drawable.openclaw_ic_status_on else R.drawable.openclaw_ic_status_off)
     }
 
     private fun updateRecentPkg() {
@@ -215,7 +215,7 @@ class MainActivity : AppCompatActivity() {
         serviceStopBtn.isEnabled = running
         if (!running) {
             serverStatusText.text = "Server: disconnected"
-            serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_off)
+            serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
         }
     }
 
@@ -317,19 +317,19 @@ class MainActivity : AppCompatActivity() {
             when (state) {
                 "connecting" -> {
                     serverStatusText.text = "Server: connecting"
-                    serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_waiting)
+                    serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_waiting)
                 }
                 "connected" -> {
                     serverStatusText.text = "Server: connected"
-                    serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_on)
+                    serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_on)
                 }
                 "disconnected" -> {
                     serverStatusText.text = "Server: disconnected"
-                    serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_off)
+                    serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
                 }
                 "failed" -> {
                     serverStatusText.text = "Server: failed"
-                    serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_off)
+                    serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
                 }
             }
         }
