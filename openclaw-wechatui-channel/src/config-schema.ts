@@ -12,12 +12,6 @@ const wechatUiAccountSchema = z.object({
   webhookPath: z.string().optional(),
   webhookSecret: z.string().optional(),
 
-  // Android "OpenClawWx" accessibility client compatibility:
-  // the Android app posts `{ query_id, groupname, username, query: { type, content } }` to `androidWebhookPath`.
-  androidWebhookPath: z.string().optional(),
-  androidWebhookSecret: z.string().optional(),
-  androidLongPollMs: z.number().int().positive().optional(),
-
   dmPolicy: z.enum(["allowlist", "open", "disabled"]).optional(),
   allowFrom: z.array(allowFromEntry).optional(),
 

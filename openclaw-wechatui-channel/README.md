@@ -35,51 +35,6 @@ dmPolicy = "allowlist"
 allowFrom = ["openclaw", "陈天羽"]
 ```
 
-## Android Huixiangdou bridge (optional)
-
-If you want this plugin to directly integrate with the Android Huixiangdou accessibility client (`SendEmojiService`),
-set the Android app URL to your OpenClaw Gateway and let the gateway act as the Huixiangdou HTTP endpoint.
-
-Add to your config:
-
-```toml
-[channels.wechatui]
-androidWebhookPath = "/openclawwx"
-# Optional auth (Android must send this in `Authorization: Bearer ...` or `X-Huixiangdou-Secret`)
-# androidWebhookSecret = "CHANGE_ME"
-```
-
-Then in the Android app (Huixiangdou UI), set URL to:
-
-`http://GATEWAY_LAN_IP:18789/openclawwx/pull`
-
-### Long polling (recommended)
-
-To reduce client polling spam, the gateway can hold `type=poll` requests open until data is ready.
-Set `androidLongPollMs` (e.g. 25000) in your config:
-
-```toml
-[channels.wechatui]
-androidLongPollMs = 25000
-```
-
-### Server push (optional)
-
-You can also enqueue a message to the Android client (it will be delivered on its next `poll`):
-
-`POST http://GATEWAY_LAN_IP:18789/openclawwx/push`
-
-Body example:
-
-```json
-{
-  "query_id": "some-session-id",
-  "groupname": "some-chat",
-  "username": "some-user",
-  "text": "hello from gateway"
-}
-```
-
 ## Run bridge (WeChat machine)
 
 Example (PowerShell, preferred: CLI args):

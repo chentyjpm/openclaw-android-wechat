@@ -4,12 +4,6 @@ import { logInboundDrop } from "openclaw/plugin-sdk";
 import type { ResolvedWeChatUiAccount } from "./accounts.js";
 import { resolveWeChatUiAccount } from "./accounts.js";
 import { WeChatUiConfigSchema } from "./config-schema.js";
-import {
-  registerOpenClawWxBridgeTarget,
-  resolveOpenClawWxBridgePathFromConfig,
-  resolveOpenClawWxBridgePullPathFromConfig,
-  resolveOpenClawWxBridgePushPathFromConfig,
-} from "./openclawwx-bridge.js";
 import { sendWeChatUiMedia, sendWeChatUiText } from "./send.js";
 import { getWeChatUiRuntime } from "./runtime.js";
 
@@ -151,7 +145,6 @@ async function processInboundMessage(payload: InboundPayload, target: WebhookTar
     }
   }
 
-  // Optional allowlist gating (recommended; also matches your "指定联系�? requirement)
   const dmPolicy = account.config.dmPolicy ?? "allowlist";
   const allowFrom = (account.config.allowFrom ?? []).map((v) => String(v).trim()).filter(Boolean);
   if (dmPolicy === "disabled") {
@@ -217,7 +210,6 @@ async function processInboundMessage(payload: InboundPayload, target: WebhookTar
           if (s) mediaUrls.push(s);
         }
 
-        // Telegram-style: if there's a mediaUrl, send media first, then follow up with text chunks.
         if (mediaUrls.length > 0) {
           for (const u of mediaUrls) {
             await sendWeChatUiMedia({
@@ -300,8 +292,6 @@ export async function handleWeChatUiWebhookRequest(
   res.statusCode = 200;
   res.end("ok");
 
-  // Acknowledge quickly; process asynchronously so the bridge doesn't time out
-  // while the agent generates a reply.
   setImmediate(() => {
     void Promise.allSettled(
       matching.map(async (target) => {
@@ -326,12 +316,8 @@ export async function monitorWeChatUiProvider(params: {
 }): Promise<() => void> {
   const core = getWeChatUiRuntime();
   const account = resolveWeChatUiAccount({ cfg: params.cfg, accountId: params.accountId });
-  // Validate config early.
   WeChatUiConfigSchema.parse((params.cfg.channels?.["wechatui"] ?? {}) as unknown);
   const webhookPath = resolveWebhookPathFromConfig(account.config);
-  const androidWebhookBasePath = resolveOpenClawWxBridgePathFromConfig(account.config);
-  const androidPullPath = resolveOpenClawWxBridgePullPathFromConfig(account.config);
-  const androidPushPath = resolveOpenClawWxBridgePushPathFromConfig(account.config);
   const unregister = registerWeChatUiWebhookTarget({
     account,
     config: params.cfg,
@@ -340,32 +326,11 @@ export async function monitorWeChatUiProvider(params: {
     path: webhookPath,
     statusSink: params.statusSink,
   });
-  const unregisterAndroid = registerOpenClawWxBridgeTarget({
-    account,
-    config: params.cfg,
-    runtime: params.runtime,
-    core,
-    path: androidPullPath,
-    statusSink: params.statusSink,
-  });
-  const unregisterAndroidPush = registerOpenClawWxBridgeTarget({
-    account,
-    config: params.cfg,
-    runtime: params.runtime,
-    core,
-    path: androidPushPath,
-    statusSink: params.statusSink,
-  });
 
   params.runtime.log?.(`[${account.accountId}] [wechatui] webhook listening on ${webhookPath}`);
-  params.runtime.log?.(`[${account.accountId}] [openclawwx] base path ${androidWebhookBasePath}`);
-  params.runtime.log?.(`[${account.accountId}] [openclawwx] pull endpoint on ${androidPullPath}`);
-  params.runtime.log?.(`[${account.accountId}] [openclawwx] push endpoint on ${androidPushPath}`);
 
   const stop = () => {
     unregister();
-    unregisterAndroid();
-    unregisterAndroidPush();
   };
 
   if (params.abortSignal.aborted) {
@@ -375,4 +340,3 @@ export async function monitorWeChatUiProvider(params: {
   params.abortSignal.addEventListener("abort", stop, { once: true });
   return stop;
 }
-
