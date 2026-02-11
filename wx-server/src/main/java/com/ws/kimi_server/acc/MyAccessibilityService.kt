@@ -189,6 +189,7 @@ class MyAccessibilityService : AccessibilityService() {
             recyclers = 0,
             wechat = null,
             capture = capture?.payload,
+            ocr = capture?.ocrPayload,
         )
 
         intent.setPackage(packageName)
@@ -231,6 +232,7 @@ class MyAccessibilityService : AccessibilityService() {
             ),
             text = captured.ocrText,
             ocrJson = captured.ocrJson,
+            ocrPayload = captured.ocrPayload,
         )
     }
 
@@ -238,6 +240,7 @@ class MyAccessibilityService : AccessibilityService() {
         val payload: TaskBridge.CapturePayload,
         val text: String,
         val ocrJson: String?,
+        val ocrPayload: TaskBridge.OcrPayloadData?,
     )
 
     private data class CapturedFrame(
@@ -247,6 +250,7 @@ class MyAccessibilityService : AccessibilityService() {
         val base64Jpeg: String,
         val ocrText: String,
         val ocrJson: String?,
+        val ocrPayload: TaskBridge.OcrPayloadData?,
     )
 
     private fun captureScreenFrame(): CapturedFrame? {
@@ -274,6 +278,7 @@ class MyAccessibilityService : AccessibilityService() {
         }
         val ocrText = ocrResult?.text ?: ""
         val ocrJson = ocrResult?.let { toOcrJson(it) }
+        val ocrPayload = ocrResult?.let { toOcrPayload(it) }
         val out = ByteArrayOutputStream()
         if (!scaled.compress(Bitmap.CompressFormat.JPEG, CAPTURE_JPEG_QUALITY, out)) {
             if (scaled !== source) scaled.recycle()
@@ -292,6 +297,24 @@ class MyAccessibilityService : AccessibilityService() {
             base64Jpeg = encoded,
             ocrText = ocrText,
             ocrJson = ocrJson,
+            ocrPayload = ocrPayload,
+        )
+    }
+
+    private fun toOcrPayload(result: PPOcrRecognizer.OcrResult): TaskBridge.OcrPayloadData {
+        return TaskBridge.OcrPayloadData(
+            text = result.text,
+            lines = result.lines.map { line ->
+                TaskBridge.OcrLineData(
+                    text = line.text,
+                    prob = line.prob,
+                    quad = line.quad.map { p -> TaskBridge.OcrPointData(x = p.x, y = p.y) },
+                    left = line.left,
+                    top = line.top,
+                    right = line.right,
+                    bottom = line.bottom,
+                )
+            },
         )
     }
 
@@ -366,8 +389,24 @@ class MyAccessibilityService : AccessibilityService() {
             Logger.i("NCNN OCR boxes changed: <EMPTY>", tag = "LanBotOCR")
             return
         }
-        val preview = if (normalized.length <= 1500) normalized else normalized.take(1500) + "...(truncated)"
-        Logger.i("NCNN OCR boxes changed: $preview", tag = "LanBotOCR")
+        logLong(tag = "LanBotOCR", prefix = "NCNN OCR boxes changed: ", text = normalized)
+    }
+
+    private fun logLong(tag: String, prefix: String, text: String) {
+        if (text.isEmpty()) {
+            Logger.i(prefix, tag = tag)
+            return
+        }
+        val maxChunk = LOGCAT_CHUNK_SIZE.coerceAtLeast(256)
+        var start = 0
+        var idx = 1
+        while (start < text.length) {
+            val end = (start + maxChunk).coerceAtMost(text.length)
+            val part = text.substring(start, end)
+            Logger.i("$prefix[$idx] $part", tag = tag)
+            start = end
+            idx += 1
+        }
     }
 
     private fun extractNotificationTitle(event: AccessibilityEvent): String? {
@@ -400,6 +439,7 @@ class MyAccessibilityService : AccessibilityService() {
         private const val CAPTURE_MAX_WIDTH = 960
         private const val SAVE_CAPTURE_TO_SDCARD = true
         private const val SDCARD_OCR_DIR = "/sdcard/ocr"
+        private const val LOGCAT_CHUNK_SIZE = 2800
         const val ACTION_SNAPSHOT = "com.ws.wx_server.ACC_SNAPSHOT"
         const val ACTION_CONNECTED = "com.ws.wx_server.ACC_CONNECTED"
         const val ACTION_DISCONNECTED = "com.ws.wx_server.ACC_DISCONNECTED"

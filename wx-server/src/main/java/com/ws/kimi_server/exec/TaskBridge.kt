@@ -5,6 +5,10 @@ import com.ws.wx_server.apps.wechat.WeChatSpec
 import com.ws.wx_server.link.http.ChatMessage
 import com.ws.wx_server.link.http.ClientEnvelope
 import com.ws.wx_server.link.http.CaptureFrame
+import com.ws.wx_server.link.http.OcrBbox
+import com.ws.wx_server.link.http.OcrLine
+import com.ws.wx_server.link.http.OcrPayload
+import com.ws.wx_server.link.http.OcrPoint
 import com.ws.wx_server.link.http.WeChatMessages
 import com.ws.wx_server.link.http.WeChatState
 import com.ws.wx_server.link.http.WindowStateEvent
@@ -63,6 +67,7 @@ object TaskBridge {
         recyclers: Int,
         wechat: WeChatStatePayload? = null,
         capture: CapturePayload? = null,
+        ocr: OcrPayloadData? = null,
     ) {
         val event = WindowStateEvent(
             pkg = pkg,
@@ -75,6 +80,7 @@ object TaskBridge {
             recyclers = recyclers.coerceAtLeast(0),
             wechat = wechat?.let { buildWeChatState(it) },
             capture = capture?.let { buildCaptureFrame(it) },
+            ocr = ocr?.let { buildOcrPayload(it) },
         )
 
         val env = ClientEnvelope(windowState = event)
@@ -112,6 +118,26 @@ object TaskBridge {
         val dataBase64: String,
     )
 
+    data class OcrPayloadData(
+        val text: String,
+        val lines: List<OcrLineData>,
+    )
+
+    data class OcrLineData(
+        val text: String,
+        val prob: Float,
+        val quad: List<OcrPointData>,
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
+    )
+
+    data class OcrPointData(
+        val x: Float,
+        val y: Float,
+    )
+
     private fun WeChatScreen.toWire(): String = when (this) {
         WeChatScreen.HOME -> "home"
         WeChatScreen.CHAT -> "chat"
@@ -143,6 +169,25 @@ object TaskBridge {
             height = payload.height,
             tsMs = payload.tsMs,
             dataBase64 = payload.dataBase64,
+        )
+    }
+
+    private fun buildOcrPayload(payload: OcrPayloadData): OcrPayload {
+        return OcrPayload(
+            text = payload.text,
+            lines = payload.lines.map { line ->
+                OcrLine(
+                    text = line.text,
+                    prob = line.prob,
+                    quad = line.quad.map { point -> OcrPoint(x = point.x, y = point.y) },
+                    bbox = OcrBbox(
+                        left = line.left,
+                        top = line.top,
+                        right = line.right,
+                        bottom = line.bottom,
+                    ),
+                )
+            },
         )
     }
 

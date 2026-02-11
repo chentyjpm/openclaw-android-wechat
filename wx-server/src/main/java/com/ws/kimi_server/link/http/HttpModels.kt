@@ -71,6 +71,7 @@ data class WindowStateEvent(
     val recyclers: Int = 0,
     val wechat: WeChatState? = null,
     val capture: CaptureFrame? = null,
+    val ocr: OcrPayload? = null,
 ) {
     fun toJson(): JSONObject = JSONObject().apply {
         put("pkg", pkg)
@@ -83,6 +84,7 @@ data class WindowStateEvent(
         put("recyclers", recyclers)
         wechat?.let { put("wechat", it.toJson()) }
         capture?.let { put("capture", it.toJson()) }
+        ocr?.let { put("ocr", it.toJson()) }
     }
 }
 
@@ -102,6 +104,52 @@ data class CaptureFrame(
         put("ts_ms", tsMs)
         put("data_base64", dataBase64)
     }
+}
+
+data class OcrPayload(
+    val text: String = "",
+    val lines: List<OcrLine> = emptyList(),
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("text", text)
+        put("lines", JSONArray().apply { lines.forEach { put(it.toJson()) } })
+    }
+}
+
+data class OcrLine(
+    val text: String = "",
+    val prob: Float = 0f,
+    val quad: List<OcrPoint> = emptyList(),
+    val bbox: OcrBbox = OcrBbox(),
+) {
+    fun toJson(): JSONObject = JSONObject().apply {
+        put("text", text)
+        put("prob", prob)
+        put("quad", JSONArray().apply { quad.forEach { put(it.toJson()) } })
+        put("bbox", bbox.toJson())
+    }
+}
+
+data class OcrPoint(
+    val x: Float = 0f,
+    val y: Float = 0f,
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("x", x)
+        .put("y", y)
+}
+
+data class OcrBbox(
+    val left: Float = 0f,
+    val top: Float = 0f,
+    val right: Float = 0f,
+    val bottom: Float = 0f,
+) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("left", left)
+        .put("top", top)
+        .put("right", right)
+        .put("bottom", bottom)
 }
 
 data class ClientAck(
