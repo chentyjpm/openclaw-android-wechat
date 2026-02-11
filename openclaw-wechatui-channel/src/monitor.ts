@@ -3,6 +3,7 @@ import type { OpenClawConfig } from "openclaw/plugin-sdk";
 import { logInboundDrop } from "openclaw/plugin-sdk";
 import type { ResolvedWeChatUiAccount } from "./accounts.js";
 import { resolveWeChatUiAccount } from "./accounts.js";
+import { registerClientBridgeTarget } from "./client-bridge.js";
 import { WeChatUiConfigSchema } from "./config-schema.js";
 import { sendWeChatUiMedia, sendWeChatUiText } from "./send.js";
 import { getWeChatUiRuntime } from "./runtime.js";
@@ -326,11 +327,20 @@ export async function monitorWeChatUiProvider(params: {
     path: webhookPath,
     statusSink: params.statusSink,
   });
+  const unregisterClient = registerClientBridgeTarget({
+    account,
+    config: params.cfg,
+    runtime: params.runtime,
+    core,
+    statusSink: params.statusSink,
+  });
 
   params.runtime.log?.(`[${account.accountId}] [wechatui] webhook listening on ${webhookPath}`);
+  params.runtime.log?.(`[${account.accountId}] [client] endpoints on /client/pull and /client/push`);
 
   const stop = () => {
     unregister();
+    unregisterClient();
   };
 
   if (params.abortSignal.aborted) {

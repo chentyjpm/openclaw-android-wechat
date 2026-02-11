@@ -35,6 +35,27 @@ dmPolicy = "allowlist"
 allowFrom = ["openclaw", "陈天羽"]
 ```
 
+## Android Client Mode (`/client/pull` + `/client/push`)
+
+The plugin now exposes Android-compatible endpoints directly:
+
+- `POST /client/pull`
+- `POST /client/push`
+
+`/client/push` accepts the Android envelope format. When an envelope contains:
+
+```json
+{ "msg": { "text": "..." } }
+```
+
+the text is treated as inbound content for OpenClaw. Generated replies are queued as
+`send_text` tasks (with `mode: "tabscan"`) and returned on `/client/pull`.
+
+If `webhookSecret` is configured, the same auth is used for `/client/*`:
+
+- `Authorization: Bearer <secret>`
+- `X-WeChatUI-Secret: <secret>`
+
 ## Run bridge (WeChat machine)
 
 Example (PowerShell, preferred: CLI args):

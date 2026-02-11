@@ -1,5 +1,6 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
+import { handleClientPullRequest, handleClientPushRequest } from "./src/client-bridge.js";
 import { handleWeChatUiWebhookRequest } from "./src/monitor.js";
 import { wechatuiPlugin } from "./src/channel.js";
 import { setWeChatUiRuntime } from "./src/runtime.js";
@@ -13,6 +14,8 @@ const plugin = {
     setWeChatUiRuntime(api.runtime);
     api.registerChannel({ plugin: wechatuiPlugin });
     api.registerHttpHandler(handleWeChatUiWebhookRequest);
+    api.registerHttpHandler(handleClientPullRequest);
+    api.registerHttpHandler(handleClientPushRequest);
   },
 };
 
