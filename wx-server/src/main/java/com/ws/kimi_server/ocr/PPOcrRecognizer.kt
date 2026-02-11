@@ -35,6 +35,12 @@ class PPOcrRecognizer(private val context: Context) {
         }
     }
 
+    fun warmUp(): Boolean {
+        synchronized(lock) {
+            return ensureInited()
+        }
+    }
+
     private fun ensureInited(): Boolean {
         if (inited) return true
         val modelDir = File(context.filesDir, "ppocr")

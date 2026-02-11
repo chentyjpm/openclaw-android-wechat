@@ -49,6 +49,12 @@ class MyAccessibilityService : AccessibilityService() {
         Logger.i("Accessibility connected")
         val cfg = com.ws.wx_server.link.LinkConfigStore.load(applicationContext)
         Logger.i("AccDebug config: events=${cfg.debugEvents} xml=${cfg.debugXml} capture=${cfg.captureStrategy}")
+        if (cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST) {
+            Thread {
+                val ok = ppOcrRecognizer.warmUp()
+                Logger.i("PPOCR warmup result=$ok", tag = "LanBotOCR")
+            }.start()
+        }
         try {
             val i = Intent(ACTION_CONNECTED)
             i.setPackage(packageName)
