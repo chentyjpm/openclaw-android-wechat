@@ -251,21 +251,33 @@ class MyAccessibilityService : AccessibilityService() {
     private fun performTabStep() {
         val root = rootInActiveWindow
         val moved = tryMoveFocusForward(root)
+        Logger.i("TabScan step=${tabScanSteps + 1} focus_forward=$moved", tag = "LanBotTabScan")
         if (!moved) {
             val shellOk = sendTabKeyByShell()
-            Logger.i("TabScan step fallback shell_tab=$shellOk", tag = "LanBotTabScan")
+            Logger.i("TabScan step=${tabScanSteps + 1} shell_tab=$shellOk", tag = "LanBotTabScan")
         }
     }
 
     private fun tryMoveFocusForward(root: AccessibilityNodeInfo?): Boolean {
-        root ?: return false
+        if (root == null) {
+            Logger.i("TabScan focus_forward: root=null", tag = "LanBotTabScan")
+            return false
+        }
         val current = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
             ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
-            ?: return false
+            ?: run {
+                Logger.i("TabScan focus_forward: current_focus=null", tag = "LanBotTabScan")
+                return false
+            }
         val next = current.focusSearch(View.FOCUS_FORWARD)
         if (next != null && next.performAction(AccessibilityNodeInfo.ACTION_FOCUS)) {
+            Logger.i(
+                "TabScan focus_forward: moved to cls=${next.className} pkg=${next.packageName}",
+                tag = "LanBotTabScan",
+            )
             return true
         }
+        Logger.i("TabScan focus_forward: next_focus_failed", tag = "LanBotTabScan")
         return false
     }
 
@@ -273,8 +285,11 @@ class MyAccessibilityService : AccessibilityService() {
         return try {
             val p = Runtime.getRuntime().exec(arrayOf("sh", "-c", "input keyevent 61"))
             p.waitFor()
-            p.exitValue() == 0
+            val ok = p.exitValue() == 0
+            Logger.i("TabScan shell input keyevent 61 exit=${p.exitValue()}", tag = "LanBotTabScan")
+            ok
         } catch (_: Throwable) {
+            Logger.w("TabScan shell input keyevent 61 exception", tag = "LanBotTabScan")
             false
         }
     }
