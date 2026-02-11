@@ -196,7 +196,8 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanSteps = 0
         tabScanStartedAt = System.currentTimeMillis()
         tabScanEvents.clear()
-        Logger.i("TabScan started: waiting first VIEW_FOCUSED EditText", tag = "LanBotTabScan")
+        Logger.i("TabScan started: stepping TAB every 250ms and listening VIEW_FOCUSED EditText", tag = "LanBotTabScan")
+        scheduleTabTick()
         tabScanTimeout = Runnable { stopTabScan("timeout") }.also {
             handler.postDelayed(it, TAB_SCAN_MAX_DURATION_MS)
         }
@@ -236,7 +237,7 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanTicker?.let { handler.removeCallbacks(it) }
         tabScanTicker = object : Runnable {
             override fun run() {
-                if (!tabScanActive || !tabScanSeenFirst) return
+                if (!tabScanActive) return
                 performTabStep()
                 tabScanSteps += 1
                 if (tabScanSteps >= TAB_SCAN_MAX_STEPS) {
@@ -317,8 +318,7 @@ class MyAccessibilityService : AccessibilityService() {
 
         if (!tabScanSeenFirst) {
             tabScanSeenFirst = true
-            Logger.i("TabScan first EditText found, start stepping with TAB", tag = "LanBotTabScan")
-            scheduleTabTick()
+            Logger.i("TabScan first EditText found", tag = "LanBotTabScan")
         } else {
             stopTabScan("second_edittext_found")
         }
