@@ -5,11 +5,11 @@ import type { ResolvedWeChatUiAccount } from "./accounts.js";
 import { resolveWeChatUiAccount } from "./accounts.js";
 import { WeChatUiConfigSchema } from "./config-schema.js";
 import {
-  registerHuixiangdouBridgeTarget,
-  resolveHuixiangdouBridgePathFromConfig,
-  resolveHuixiangdouBridgePullPathFromConfig,
-  resolveHuixiangdouBridgePushPathFromConfig,
-} from "./huixiangdou-bridge.js";
+  registerOpenClawWxBridgeTarget,
+  resolveOpenClawWxBridgePathFromConfig,
+  resolveOpenClawWxBridgePullPathFromConfig,
+  resolveOpenClawWxBridgePushPathFromConfig,
+} from "./openclawwx-bridge.js";
 import { sendWeChatUiMedia, sendWeChatUiText } from "./send.js";
 import { getWeChatUiRuntime } from "./runtime.js";
 
@@ -151,7 +151,7 @@ async function processInboundMessage(payload: InboundPayload, target: WebhookTar
     }
   }
 
-  // Optional allowlist gating (recommended; also matches your "指定联系人" requirement)
+  // Optional allowlist gating (recommended; also matches your "指定联系�? requirement)
   const dmPolicy = account.config.dmPolicy ?? "allowlist";
   const allowFrom = (account.config.allowFrom ?? []).map((v) => String(v).trim()).filter(Boolean);
   if (dmPolicy === "disabled") {
@@ -329,9 +329,9 @@ export async function monitorWeChatUiProvider(params: {
   // Validate config early.
   WeChatUiConfigSchema.parse((params.cfg.channels?.["wechatui"] ?? {}) as unknown);
   const webhookPath = resolveWebhookPathFromConfig(account.config);
-  const androidWebhookBasePath = resolveHuixiangdouBridgePathFromConfig(account.config);
-  const androidPullPath = resolveHuixiangdouBridgePullPathFromConfig(account.config);
-  const androidPushPath = resolveHuixiangdouBridgePushPathFromConfig(account.config);
+  const androidWebhookBasePath = resolveOpenClawWxBridgePathFromConfig(account.config);
+  const androidPullPath = resolveOpenClawWxBridgePullPathFromConfig(account.config);
+  const androidPushPath = resolveOpenClawWxBridgePushPathFromConfig(account.config);
   const unregister = registerWeChatUiWebhookTarget({
     account,
     config: params.cfg,
@@ -340,7 +340,7 @@ export async function monitorWeChatUiProvider(params: {
     path: webhookPath,
     statusSink: params.statusSink,
   });
-  const unregisterAndroid = registerHuixiangdouBridgeTarget({
+  const unregisterAndroid = registerOpenClawWxBridgeTarget({
     account,
     config: params.cfg,
     runtime: params.runtime,
@@ -348,7 +348,7 @@ export async function monitorWeChatUiProvider(params: {
     path: androidPullPath,
     statusSink: params.statusSink,
   });
-  const unregisterAndroidPush = registerHuixiangdouBridgeTarget({
+  const unregisterAndroidPush = registerOpenClawWxBridgeTarget({
     account,
     config: params.cfg,
     runtime: params.runtime,
@@ -375,3 +375,4 @@ export async function monitorWeChatUiProvider(params: {
   params.abortSignal.addEventListener("abort", stop, { once: true });
   return stop;
 }
+

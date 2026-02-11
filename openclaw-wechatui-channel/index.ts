@@ -1,6 +1,6 @@
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
 import { emptyPluginConfigSchema } from "openclaw/plugin-sdk";
-import { handleHuixiangdouBridgeRequest, handleHuixiangdouPushRequest } from "./src/huixiangdou-bridge.js";
+import { handleOpenClawWxPullRequest, handleOpenClawWxPushRequest } from "./src/openclawwx-bridge.js";
 import { handleWeChatUiWebhookRequest } from "./src/monitor.js";
 import { wechatuiPlugin } from "./src/channel.js";
 import { setWeChatUiRuntime } from "./src/runtime.js";
@@ -14,9 +14,10 @@ const plugin = {
     setWeChatUiRuntime(api.runtime);
     api.registerChannel({ plugin: wechatuiPlugin });
     api.registerHttpHandler(handleWeChatUiWebhookRequest);
-    api.registerHttpHandler(handleHuixiangdouBridgeRequest);
-    api.registerHttpHandler(handleHuixiangdouPushRequest);
+    api.registerHttpHandler(handleOpenClawWxPullRequest);
+    api.registerHttpHandler(handleOpenClawWxPushRequest);
   },
 };
 
 export default plugin;
+

@@ -12,7 +12,7 @@ const wechatUiAccountSchema = z.object({
   webhookPath: z.string().optional(),
   webhookSecret: z.string().optional(),
 
-  // Android "Huixiangdou" accessibility client compatibility:
+  // Android "OpenClawWx" accessibility client compatibility:
   // the Android app posts `{ query_id, groupname, username, query: { type, content } }` to `androidWebhookPath`.
   androidWebhookPath: z.string().optional(),
   androidWebhookSecret: z.string().optional(),
@@ -30,3 +30,4 @@ export const WeChatUiConfigSchema = wechatUiAccountSchema.extend({
 
 export type WeChatUiAccountConfig = z.infer<typeof wechatUiAccountSchema>;
 export type WeChatUiConfig = z.infer<typeof WeChatUiConfigSchema>;
+

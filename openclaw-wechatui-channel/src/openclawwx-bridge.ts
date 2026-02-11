@@ -11,7 +11,7 @@ type WeChatUiRuntimeEnv = {
 
 type WeChatUiCoreRuntime = ReturnType<typeof getWeChatUiRuntime>;
 
-type HuixiangdouBridgeTarget = {
+type OpenClawWxBridgeTarget = {
   account: ResolvedWeChatUiAccount;
   config: OpenClawConfig;
   runtime: WeChatUiRuntimeEnv;
@@ -28,7 +28,7 @@ type QueryResponsePair = { req: Required<UserInfo>; rsp: Rsp };
 type ChatResponse = { msg: string; msgCode: number; data: QueryResponsePair[] };
 
 const DEFAULT_BRIDGE_PATH = "/openclawwx";
-const bridgeTargets = new Map<string, HuixiangdouBridgeTarget[]>();
+const bridgeTargets = new Map<string, OpenClawWxBridgeTarget[]>();
 
 type PushPayload = {
   accountId?: string;
@@ -99,7 +99,7 @@ function isAuthorized(req: IncomingMessage, secret: string): boolean {
   const bearer = authHeader.toLowerCase().startsWith("bearer ")
     ? authHeader.slice("bearer ".length).trim()
     : "";
-  const headerSecret = String(req.headers["x-huixiangdou-secret"] ?? "").trim();
+  const headerSecret = String(req.headers["x-openclawwx-secret"] ?? "").trim();
   const token = bearer || headerSecret;
   return token === secret;
 }
@@ -133,7 +133,7 @@ function ensureSession(key: string): SessionState {
 }
 
 async function generateReply(params: {
-  target: HuixiangdouBridgeTarget;
+  target: OpenClawWxBridgeTarget;
   req: Required<UserInfo>;
 }): Promise<void> {
   const { target, req } = params;
@@ -207,7 +207,7 @@ async function generateReply(params: {
   });
 }
 
-function tryStartGeneration(target: HuixiangdouBridgeTarget, req: Required<UserInfo>) {
+function tryStartGeneration(target: OpenClawWxBridgeTarget, req: Required<UserInfo>) {
   const accountId = target.account.accountId;
   const queryId = req.query_id || req.groupname || req.username || "unknown";
   const key = sessionKey(accountId, queryId);
@@ -228,7 +228,7 @@ function tryStartGeneration(target: HuixiangdouBridgeTarget, req: Required<UserI
           references: [],
         },
       });
-      target.runtime.error?.(`[huixiangdou-bridge] reply generation failed: ${String(err)}`);
+      target.runtime.error?.(`[openclawwx-bridge] reply generation failed: ${String(err)}`);
     } finally {
       state.inFlight = false;
       state.lastSeenAt = Date.now();
@@ -237,7 +237,7 @@ function tryStartGeneration(target: HuixiangdouBridgeTarget, req: Required<UserI
   })();
 }
 
-function drainQueued(target: HuixiangdouBridgeTarget, req: Required<UserInfo>): QueryResponsePair[] {
+function drainQueued(target: OpenClawWxBridgeTarget, req: Required<UserInfo>): QueryResponsePair[] {
   const accountId = target.account.accountId;
   const queryId = req.query_id || req.groupname || req.username || "unknown";
   const key = sessionKey(accountId, queryId);
@@ -253,22 +253,22 @@ function json(res: ServerResponse, status: number, payload: unknown) {
   res.end(JSON.stringify(payload));
 }
 
-export function resolveHuixiangdouBridgePathFromConfig(config?: { androidWebhookPath?: string | null }): string {
+export function resolveOpenClawWxBridgePathFromConfig(config?: { androidWebhookPath?: string | null }): string {
   const raw = safeString(config?.androidWebhookPath).trim();
   return raw ? normalizeWebhookPath(raw) : DEFAULT_BRIDGE_PATH;
 }
 
-export function resolveHuixiangdouBridgePullPathFromConfig(config?: { androidWebhookPath?: string | null }): string {
-  const base = resolveHuixiangdouBridgePathFromConfig(config);
+export function resolveOpenClawWxBridgePullPathFromConfig(config?: { androidWebhookPath?: string | null }): string {
+  const base = resolveOpenClawWxBridgePathFromConfig(config);
   return normalizeWebhookPath(`${base}/pull`);
 }
 
-export function resolveHuixiangdouBridgePushPathFromConfig(config?: { androidWebhookPath?: string | null }): string {
-  const base = resolveHuixiangdouBridgePathFromConfig(config);
+export function resolveOpenClawWxBridgePushPathFromConfig(config?: { androidWebhookPath?: string | null }): string {
+  const base = resolveOpenClawWxBridgePathFromConfig(config);
   return normalizeWebhookPath(`${base}/push`);
 }
 
-export function registerHuixiangdouBridgeTarget(target: HuixiangdouBridgeTarget): () => void {
+export function registerOpenClawWxBridgeTarget(target: OpenClawWxBridgeTarget): () => void {
   const key = normalizeWebhookPath(target.path);
   const normalizedTarget = { ...target, path: key };
   const existing = bridgeTargets.get(key) ?? [];
@@ -281,7 +281,7 @@ export function registerHuixiangdouBridgeTarget(target: HuixiangdouBridgeTarget)
   };
 }
 
-function enqueuePair(target: HuixiangdouBridgeTarget, pair: QueryResponsePair) {
+function enqueuePair(target: OpenClawWxBridgeTarget, pair: QueryResponsePair) {
   const accountId = target.account.accountId;
   const queryId = pair.req.query_id || pair.req.groupname || pair.req.username || "unknown";
   const key = sessionKey(accountId, queryId);
@@ -300,8 +300,8 @@ function enqueuePair(target: HuixiangdouBridgeTarget, pair: QueryResponsePair) {
   }
 }
 
-function selectSingleTarget(targets: HuixiangdouBridgeTarget[], req: IncomingMessage): HuixiangdouBridgeTarget | null {
-  let matching: HuixiangdouBridgeTarget[] = [];
+function selectSingleTarget(targets: OpenClawWxBridgeTarget[], req: IncomingMessage): OpenClawWxBridgeTarget | null {
+  let matching: OpenClawWxBridgeTarget[] = [];
   try {
     matching = targets.filter((t) => {
       WeChatUiConfigSchema.parse((t.config.channels?.["wechatui"] ?? {}) as unknown);
@@ -319,7 +319,7 @@ function selectSingleTarget(targets: HuixiangdouBridgeTarget[], req: IncomingMes
 }
 
 async function waitForQueuedPairs(params: {
-  target: HuixiangdouBridgeTarget;
+  target: OpenClawWxBridgeTarget;
   req: Required<UserInfo>;
   waitMs: number;
   httpReq: IncomingMessage;
@@ -357,7 +357,7 @@ async function waitForQueuedPairs(params: {
   });
 }
 
-export async function handleHuixiangdouBridgeRequest(
+export async function handleOpenClawWxPullRequest(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
@@ -426,7 +426,7 @@ export async function handleHuixiangdouBridgeRequest(
   return true;
 }
 
-export async function handleHuixiangdouPushRequest(
+export async function handleOpenClawWxPushRequest(
   req: IncomingMessage,
   res: ServerResponse,
 ): Promise<boolean> {
@@ -489,3 +489,4 @@ export async function handleHuixiangdouPushRequest(
   json(res, 200, { ok: true, queued: true });
   return true;
 }
+
