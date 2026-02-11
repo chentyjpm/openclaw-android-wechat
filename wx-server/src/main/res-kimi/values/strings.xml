@@ -1,4 +1,4 @@
 <resources>
-    <string name="kimi_app_name">wx-server</string>
+    <string name="kimi_app_name">OpenClawBot</string>
     <string name="kimi_ime_subtype_label">LanBot Keyboard</string>
 </resources>
