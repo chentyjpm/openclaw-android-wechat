@@ -443,8 +443,6 @@ class MyAccessibilityService : AccessibilityService() {
         val normalized = text.trim()
         if (normalized == lastLoggedOcrText) return
         lastLoggedOcrText = normalized
-        val preview = if (normalized.isEmpty()) "<EMPTY>" else normalized.take(200)
-        Logger.i("NCNN OCR changed: $preview", tag = "LanBotOCR")
     }
 
     private fun maybeLogOcrJsonChange(ocrJson: String?) {
