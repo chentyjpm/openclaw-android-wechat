@@ -1,77 +1,41 @@
 # openclaw-wechatui-channel
 
-WeChat (Windows UI automation) as an OpenClaw `wechatui` channel via a Windows bridge + inbound webhook.
+OpenClaw `wechatui` channel plugin in Android client mode only.
 
-## Topology (two computers)
+This plugin exposes:
 
-- **Gateway machine**: runs OpenClaw Gateway + this plugin.
-- **WeChat machine (Windows)**: runs WeChat + `pywechat/openclaw_wechat_bridge.py`.
+- `POST /client/pull`
+- `POST /client/push`
 
-## Install (Gateway machine)
+Old Windows bridge/webhook mode has been removed.
 
-From a checkout:
+## Install
 
 ```bash
 openclaw plugins install ./openclaw-wechatui-channel
 ```
 
-If you previously installed an older copy from a local path, delete the existing install dir first:
-
-```bash
-rm -rf ~/.openclaw/extensions/wechatui
-```
-
-## Configure (Gateway machine)
-
-In your OpenClaw config:
+## Config
 
 ```toml
 [channels.wechatui]
-bridgeUrl = "http://WECHAT_PC_LAN_IP:19899"
-bridgeToken = "CHANGE_ME"
-webhookPath = "/wechatui"
+enabled = true
 webhookSecret = "CHANGE_ME"
 dmPolicy = "allowlist"
-allowFrom = ["openclaw", "陈天羽"]
+allowFrom = ["openclaw"]
 ```
 
-## Android Client Mode (`/client/pull` + `/client/push`)
+`bridgeUrl` / `bridgeToken` / `webhookPath` are no longer needed.
 
-The plugin now exposes Android-compatible endpoints directly:
+## Auth
 
-- `POST /client/pull`
-- `POST /client/push`
-
-`/client/push` accepts the Android envelope format. When an envelope contains:
-
-```json
-{ "msg": { "text": "..." } }
-```
-
-the text is treated as inbound content for OpenClaw. Generated replies are queued as
-`send_text` tasks (with `mode: "tabscan"`) and returned on `/client/pull`.
-
-If `webhookSecret` is configured, the same auth is used for `/client/*`:
+If `webhookSecret` is set, `/client/*` requires one of:
 
 - `Authorization: Bearer <secret>`
 - `X-WeChatUI-Secret: <secret>`
 
-## Run bridge (WeChat machine)
+## Protocol
 
-Example (PowerShell, preferred: CLI args):
-
-```powershell
-python -X utf8 pywechat\\openclaw_wechat_bridge.py `
-  --targets "openclaw" `
-  --bridge-token "CHANGE_ME" `
-  --webhook-url "http://GATEWAY_LAN_IP:18789/wechatui" `
-  --webhook-secret "CHANGE_ME"
-```
-
-Legacy: environment variables are still supported for backwards compatibility.
-
-## Sending images
-
-- Preferred: `sendMedia` with `mediaUrl` as a **local file path on the gateway machine** (e.g. `/home/.../image.png` or `file:///home/.../image.png`). The plugin uploads the file to the Windows bridge and sends it.
-- Also supported: `http(s)://...` image URLs (gateway downloads, uploads to bridge, then sends).
-- Not supported: `data:image/...;base64,...` (disabled; too token-heavy).
+- `/client/push` receives Android envelopes.
+- For each envelope with `msg.text`, plugin treats it as inbound user text.
+- Replies are converted to `send_text` tasks and returned by `/client/pull`.

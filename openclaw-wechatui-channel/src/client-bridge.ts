@@ -130,8 +130,8 @@ function getQueueState(accountId: string): ClientQueueState {
   return created;
 }
 
-function enqueueTask(target: ClientBridgeTarget, type: string, payload: Record<string, unknown>): ClientTask {
-  const state = getQueueState(target.account.accountId);
+function enqueueTaskForAccount(accountId: string, type: string, payload: Record<string, unknown>): ClientTask {
+  const state = getQueueState(accountId);
   const task: ClientTask = {
     task_id: state.nextTaskId++,
     type,
@@ -142,6 +142,23 @@ function enqueueTask(target: ClientBridgeTarget, type: string, payload: Record<s
     state.tasks.splice(0, state.tasks.length - MAX_TASKS);
   }
   return task;
+}
+
+function enqueueTask(target: ClientBridgeTarget, type: string, payload: Record<string, unknown>): ClientTask {
+  return enqueueTaskForAccount(target.account.accountId, type, payload);
+}
+
+export function enqueueClientSendTextTask(params: {
+  accountId: string;
+  text: string;
+  mode?: string;
+  requestId?: string;
+}): ClientTask {
+  return enqueueTaskForAccount(params.accountId, "send_text", {
+    request_id: params.requestId ?? randomUUID(),
+    text: params.text,
+    mode: params.mode ?? "openclaw",
+  });
 }
 
 async function generateReplyTasks(params: {

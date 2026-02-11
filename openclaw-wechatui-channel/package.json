@@ -1,7 +1,7 @@
 {
   "name": "wechatui",
   "version": "0.1.0",
-  "description": "OpenClaw WeChat UI (Windows) channel plugin (bridge + webhook)",
+  "description": "OpenClaw WeChat UI channel plugin (Android client pull/push)",
   "type": "module",
   "dependencies": {
     "openclaw": "2026.1.30",
@@ -12,10 +12,10 @@
     "channel": {
       "id": "wechatui",
       "label": "WeChat UI",
-      "selectionLabel": "WeChat UI (Windows bridge)",
+      "selectionLabel": "WeChat UI (Android client)",
       "docsPath": "/channels/wechatui",
       "docsLabel": "wechatui",
-      "blurb": "WeChat (Windows UI automation) via a bridge + webhook.",
+      "blurb": "WeChat via Android accessibility client (/client/pull + /client/push).",
       "aliases": ["wx"],
       "order": 90
     }

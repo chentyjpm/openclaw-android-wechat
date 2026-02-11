@@ -5,11 +5,6 @@ const allowFromEntry = z.union([z.string(), z.number()]);
 const wechatUiAccountSchema = z.object({
   name: z.string().optional(),
   enabled: z.boolean().optional(),
-
-  bridgeUrl: z.string().optional(),
-  bridgeToken: z.string().optional(),
-
-  webhookPath: z.string().optional(),
   webhookSecret: z.string().optional(),
 
   dmPolicy: z.enum(["allowlist", "open", "disabled"]).optional(),

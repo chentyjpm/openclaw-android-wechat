@@ -12,17 +12,17 @@ import {
   resolveWeChatUiAccount,
   type ResolvedWeChatUiAccount,
 } from "./accounts.js";
-import { monitorWeChatUiProvider, resolveWebhookPathFromConfig } from "./monitor.js";
-import { sendWeChatUiMedia, sendWeChatUiText } from "./send.js";
+import { enqueueClientSendTextTask } from "./client-bridge.js";
+import { monitorWeChatUiProvider } from "./monitor.js";
 
 const meta = {
   id: "wechatui",
   label: "WeChat UI",
-  selectionLabel: "WeChat UI (Windows bridge)",
+  selectionLabel: "WeChat UI (Android client)",
   detailLabel: "WeChat UI",
   docsPath: "/channels/wechatui",
   docsLabel: "wechatui",
-  blurb: "WeChat (Windows UI automation) via a bridge + webhook.",
+  blurb: "WeChat via Android accessibility client (/client/pull + /client/push).",
   systemImage: "message",
   aliases: ["wx"],
   order: 90,
@@ -58,16 +58,16 @@ export const wechatuiPlugin: ChannelPlugin<ResolvedWeChatUiAccount> = {
         cfg: cfg,
         sectionKey: "wechatui",
         accountId,
-        clearBaseFields: ["bridgeUrl", "bridgeToken", "webhookPath", "webhookSecret", "name"],
+        clearBaseFields: ["webhookSecret", "name"],
       }),
-    isConfigured: (account) => Boolean(account.config.bridgeUrl && account.config.bridgeToken),
+    // Client mode (/client/pull + /client/push) does not require bridgeUrl/bridgeToken.
+    isConfigured: (_account) => true,
     describeAccount: (account): ChannelAccountSnapshot => ({
       accountId: account.accountId,
       name: account.name,
       enabled: account.enabled,
-      configured: Boolean(account.config.bridgeUrl && account.config.bridgeToken),
-      bridgeUrl: account.config.bridgeUrl,
-      webhookPath: account.config.webhookPath,
+      configured: true,
+      mode: "client",
     }),
   },
   messaging: {
@@ -82,24 +82,34 @@ export const wechatuiPlugin: ChannelPlugin<ResolvedWeChatUiAccount> = {
     sendText: async ({ cfg, to, text, accountId }) => {
       const dest = String(to ?? "").trim();
       if (!dest) throw missingTargetError("wechatui");
-      await sendWeChatUiText({ cfg, accountId, to: dest, text });
-      return { channel: "wechatui", messageId: `wechatui:${Date.now()}` };
+      const account = resolveWeChatUiAccount({ cfg: cfg, accountId });
+      const task = enqueueClientSendTextTask({
+        accountId: account.accountId,
+        text: String(text ?? ""),
+        mode: "openclaw",
+      });
+      return { channel: "wechatui", messageId: `wechatui:task:${task.task_id}` };
     },
     sendMedia: async ({ cfg, to, text, mediaUrl, accountId }) => {
       const dest = String(to ?? "").trim();
       if (!dest) throw missingTargetError("wechatui");
       const url = String(mediaUrl ?? "").trim();
       if (!url) throw new Error("wechatui: missing mediaUrl");
-      await sendWeChatUiMedia({ cfg, accountId, to: dest, text: text ?? "", mediaUrl: url });
-      return { channel: "wechatui", messageId: `wechatui:${Date.now()}` };
+      const account = resolveWeChatUiAccount({ cfg: cfg, accountId });
+      const merged = [String(text ?? "").trim(), url].filter(Boolean).join("\n");
+      const task = enqueueClientSendTextTask({
+        accountId: account.accountId,
+        text: merged,
+        mode: "openclaw",
+      });
+      return { channel: "wechatui", messageId: `wechatui:task:${task.task_id}` };
     },
   },
   gateway: {
     startAccount: async (ctx) => {
       const account = ctx.account;
-      const webhookPath = resolveWebhookPathFromConfig(account.config);
-      ctx.setStatus({ accountId: account.accountId, webhookPath });
-      ctx.log?.info(`[${account.accountId}] starting provider (webhook=${webhookPath})`);
+      ctx.setStatus({ accountId: account.accountId, mode: "client" });
+      ctx.log?.info(`[${account.accountId}] starting provider (client mode=/client/pull,/client/push)`);
       return await monitorWeChatUiProvider({
         cfg: ctx.cfg,
         accountId: ctx.accountId,
