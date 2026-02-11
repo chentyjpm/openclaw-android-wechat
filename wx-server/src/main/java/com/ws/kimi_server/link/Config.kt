@@ -8,7 +8,7 @@ const val CAPTURE_STRATEGY_NODE_ONLY = "node_only"
 
 data class ServerConfig(
     val host: String = "127.0.0.1",
-    val port: Int = 18790,
+    val port: Int = 18789,
     val keepAliveSeconds: Int = 60,
     val useTls: Boolean = false,
     val debugEvents: Boolean = false,

@@ -87,14 +87,17 @@ class RestLink(private val cfg: ServerConfig) : Link {
     private fun pullOnce() {
         if (closed) return
         val body = ClientPull(afterId = lastTaskId, limit = PULL_LIMIT).toJson().toString()
+        val url = "${baseUrl()}/client/pull"
         val req = Request.Builder()
-            .url("${baseUrl()}/client/pull")
+            .url(url)
             .post(body.toRequestBody(JSON))
             .build()
         try {
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    onError.invoke("HTTP ${resp.code}")
+                    val respBody = resp.body?.string().orEmpty().take(240)
+                    val hint = if (resp.code == 405) " (check gateway host/port and /client/pull method=POST)" else ""
+                    onError.invoke("HTTP ${resp.code} POST $url$hint body=$respBody")
                     updateState("failed")
                     return
                 }
@@ -140,14 +143,17 @@ class RestLink(private val cfg: ServerConfig) : Link {
     private fun push(envelopes: List<ClientEnvelope>): Boolean {
         if (closed || envelopes.isEmpty()) return false
         val body = ClientPush(envelopes).toJson().toString()
+        val url = "${baseUrl()}/client/push"
         val req = Request.Builder()
-            .url("${baseUrl()}/client/push")
+            .url(url)
             .post(body.toRequestBody(JSON))
             .build()
         try {
             client.newCall(req).execute().use { resp ->
                 if (!resp.isSuccessful) {
-                    onError.invoke("HTTP ${resp.code}")
+                    val respBody = resp.body?.string().orEmpty().take(240)
+                    val hint = if (resp.code == 405) " (check gateway host/port and /client/push method=POST)" else ""
+                    onError.invoke("HTTP ${resp.code} POST $url$hint body=$respBody")
                     updateState("failed")
                     return false
                 } else {
