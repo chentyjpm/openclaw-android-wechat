@@ -136,7 +136,15 @@ class PPOcrRecognizer(private val context: Context) {
     }
 
     private fun hasAllModelFiles(dir: File): Boolean {
-        return modelFiles(dir).all { it.exists() && it.length() > MIN_FILE_BYTES }
+        return modelFiles(dir).all { file ->
+            if (!file.exists()) return@all false
+            when {
+                file.name.endsWith(".pdiparams") -> file.length() > MIN_PARAM_BYTES
+                file.name == LABEL_FILE -> file.length() > MIN_LABEL_BYTES
+                file.name.endsWith(".pdmodel") -> file.length() > 0L
+                else -> file.length() > 0L
+            }
+        }
     }
 
     private fun downloadAndExtractModel(url: String, targetBaseName: String, targetDir: File): Boolean {
@@ -293,7 +301,8 @@ class PPOcrRecognizer(private val context: Context) {
 
     companion object {
         private val downloadLock = Any()
-        private const val MIN_FILE_BYTES = 1024L
+        private const val MIN_PARAM_BYTES = 1024L
+        private const val MIN_LABEL_BYTES = 128L
         const val DET_MODEL_BASENAME = "det"
         const val REC_MODEL_BASENAME = "rec"
         const val CLS_MODEL_BASENAME = "cls"
