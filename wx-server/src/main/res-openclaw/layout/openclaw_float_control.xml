@@ -32,26 +32,6 @@
         android:orientation="horizontal">
 
         <Button
-            android:id="@+id/btn_float_start"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:text="Start" />
-
-        <Button
-            android:id="@+id/btn_float_stop"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:layout_marginStart="8dp"
-            android:text="Stop" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
-        android:orientation="horizontal">
-
-        <Button
             android:id="@+id/btn_float_tab_scan_start"
             android:layout_width="wrap_content"
             android:layout_height="36dp"

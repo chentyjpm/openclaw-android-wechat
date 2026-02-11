@@ -21,10 +21,7 @@ import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.ws.wx_server.R
 import com.ws.wx_server.acc.MyAccessibilityService
-import com.ws.wx_server.apps.wechat.WeChatSpec
-import com.ws.wx_server.core.CoreForegroundService
 import com.ws.wx_server.core.ServiceStateStore
-import com.ws.wx_server.exec.AccessibilityAgent
 import com.ws.wx_server.ime.LanBotImeService
 import com.ws.wx_server.util.Logger
 
@@ -33,7 +30,6 @@ class FloatingControlService : Service() {
     private var rootView: View? = null
     private var lp: WindowManager.LayoutParams? = null
     private var stateText: TextView? = null
-    private val accessibilityAgent = AccessibilityAgent()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -146,31 +142,9 @@ class FloatingControlService : Service() {
 
     private fun bindActions(view: View, params: WindowManager.LayoutParams) {
         stateText = view.findViewById(R.id.tv_float_state)
-        val startBtn = view.findViewById<Button>(R.id.btn_float_start)
-        val stopBtn = view.findViewById<Button>(R.id.btn_float_stop)
         val tabScanStartBtn = view.findViewById<Button>(R.id.btn_float_tab_scan_start)
         val tabScanStopBtn = view.findViewById<Button>(R.id.btn_float_tab_scan_stop)
 
-        startBtn.setOnClickListener {
-            CoreForegroundService.start(this)
-            updateStateText()
-            Toast.makeText(this, "Switching to WeChat...", Toast.LENGTH_SHORT).show()
-            Thread {
-                val switched = accessibilityAgent.nav_to_app(this, WeChatSpec.PKG)
-                Logger.i("Floating start: switch to WeChat -> $switched", tag = "LanBotTabScan")
-                if (!LanBotImeService.isServiceActive()) {
-                    Logger.w("Floating start: LanBot Keyboard inactive", tag = "LanBotTabScan")
-                }
-                sendBroadcast(
-                    Intent(MyAccessibilityService.ACTION_START_TAB_SCAN).apply { setPackage(packageName) }
-                )
-            }.start()
-        }
-        stopBtn.setOnClickListener {
-            CoreForegroundService.stop(this)
-            updateStateText()
-            Toast.makeText(this, "Service stopped", Toast.LENGTH_SHORT).show()
-        }
         tabScanStartBtn.setOnClickListener {
             if (!LanBotImeService.isServiceActive()) {
                 Toast.makeText(this, "Enable/select LanBot Keyboard first", Toast.LENGTH_SHORT).show()
