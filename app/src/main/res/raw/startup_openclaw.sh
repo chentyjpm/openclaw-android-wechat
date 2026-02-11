@@ -26,7 +26,7 @@
 set -e
 set -o pipefail
 
-# 解析命令行选项
+# Parse command line options
 VERBOSE=0
 DRY_RUN=0
 UNINSTALL=0
@@ -50,24 +50,24 @@ while [[ $# -gt 0 ]]; do
             shift
             ;;
         --help|-h)
-            echo "用法: $0 [选项]"
-            echo "选项:"
-            echo "  --verbose, -v    启用详细输出"
-            echo "  --dry-run, -d    模拟运行，不执行实际命令"
-            echo "  --uninstall, -u  卸载 Openclaw 和相关配�?"
-            echo "  --update, -U     强制更新到最新版�?"
-            echo "  --help, -h       显示此帮助信�?"
+            echo "Usage: $0 [options]"
+            echo "Options:"
+            echo "  --verbose, -v    Enable verbose output"
+            echo "  --dry-run, -d    Dry run mode (do not execute commands)"
+            echo "  --uninstall, -u  Uninstall Openclaw and related config"
+            echo "  --update, -U     Force update to latest version"
+            echo "  --help, -h       Show this help message"
             exit 0
             ;;
         *)
-            echo "未知选项: $1"
-            echo "使用 --help 查看帮助"
+            echo "Unknown option: $1"
+            echo "Use --help for usage"
             exit 1
             ;;
     esac
 done
 
-trap 'echo -e "${RED}错误：脚本执行失败，请检查上述输�?{NC}"; exit 1' ERR
+trap 'echo -e "${RED}Error: script execution failed. Check logs above.${NC}"; exit 1' ERR
 
 # ==========================================
 # Openclaw Termux Deployment Script v2.0
@@ -76,31 +76,31 @@ trap 'echo -e "${RED}错误：脚本执行失败，请检查上述输�?{NC}"; e
 # Function definitions
 check_deps() {
     # Check and install basic dependencies
-    log "开始检查基础环境"
-    echo -e "${YELLOW}[1/6] 正在检查基础运行环境...${NC}"
+    log "Checking base environment"
+    echo -e "${YELLOW}[1/6] Checking base runtime environment...${NC}"
 
-    # 检查是否需要更�?pkg（每天只执行一次）
+    # Check if pkg update is needed (run at most once per day)
     UPDATE_FLAG="$HOME/.pkg_last_update"
     if [ ! -f "$UPDATE_FLAG" ] || [ $(($(date +%s) - $(stat -c %Y "$UPDATE_FLAG" 2>/dev/null || echo 0))) -gt 86400 ]; then
-        log "执行 pkg update"
-        echo -e "${YELLOW}更新包列�?..${NC}"
+        log "Running pkg update"
+        echo -e "${YELLOW}Updating package lists...${NC}"
         run_cmd pkg update -y
         if [ $? -ne 0 ]; then
-            log "pkg update 失败"
-            echo -e "${RED}错误：pkg 更新失败${NC}"
+            log "pkg update failed"
+            echo -e "${RED}Error: pkg update failed${NC}"
             exit 1
         fi
         run_cmd touch "$UPDATE_FLAG"
-        log "pkg update 完成"
+        log "pkg update completed"
     else
-        log "跳过 pkg update（已更新�?"
-        echo -e "${GREEN}包列表已是最�?{NC}"
+        log "Skipping pkg update (already up to date)"
+        echo -e "${GREEN}Package list is already up to date${NC}"
     fi
 
     NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)
     if [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" -lt 22 ]; then
         log "Node.js version check failed: $NODE_VERSION, trying auto-install"
-        echo -e "${YELLOW}Node.js 缺失或版本低�?22，尝试自动安�?..${NC}"
+        echo -e "${YELLOW}Node.js is missing or below v22. Trying auto-install...${NC}"
 
         if command -v pkg >/dev/null 2>&1; then
             run_cmd pkg update -y
@@ -110,7 +110,7 @@ check_deps() {
             run_cmd apk add nodejs npm
         else
             log "No pkg/apk found to auto-install nodejs"
-            echo -e "${RED}错误：无法自动安�?Node.js（未找到 pkg �?apk�?{NC}"
+            echo -e "${RED}Error: cannot auto-install Node.js (pkg/apk not found)${NC}"
             exit 1
         fi
 
@@ -118,13 +118,13 @@ check_deps() {
         NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)
         if [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" -lt 22 ]; then
             log "Node.js still invalid after auto-install: $NODE_VERSION"
-            echo -e "${RED}错误：Node.js 版本必须 >= 22，当�? $(node --version 2>/dev/null || echo 'unknown')${NC}"
+            echo -e "${RED}Error: Node.js version must be >= 22. Current: $(node --version 2>/dev/null || echo 'unknown')${NC}"
             exit 1
         fi
     fi
     log "Node.js version check passed: $(node --version 2>/dev/null || echo 'unknown')"
-    echo -e "${BLUE}Node.js 版本: $(node -v 2>/dev/null || echo 'not installed')${NC}"
-    echo -e "${BLUE}NPM 版本: $(npm -v 2>/dev/null || echo 'not installed')${NC}"
+    echo -e "${BLUE}Node.js version: $(node -v 2>/dev/null || echo 'not installed')${NC}"
+    echo -e "${BLUE}NPM version: $(npm -v 2>/dev/null || echo 'not installed')${NC}"
 
     DEPS=("nodejs" "git" "openssh" "tmux" "termux-api" "termux-tools" "cmake" "python" "golang" "which")
     MISSING_DEPS=()
@@ -139,146 +139,146 @@ check_deps() {
 
     touch "$BASHRC" 2>/dev/null
 
-    log "设置 NPM 镜像"
+    log "Configuring NPM registry"
     npm config set registry https://registry.npmmirror.com
     if [ $? -ne 0 ]; then
-        log "NPM 镜像设置失败"
-        echo -e "${RED}错误：NPM 镜像设置失败${NC}"
+        log "Failed to configure NPM registry"
+        echo -e "${RED}Error: failed to configure NPM registry${NC}"
         exit 1
     fi
 
     if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
-        log "缺失依赖: ${MISSING_DEPS[*]}"
-        echo -e "${YELLOW}检查可能的组件缺失: ${MISSING_DEPS[*]}${NC}"
+        log "Missing dependencies: ${MISSING_DEPS[*]}"
+        echo -e "${YELLOW}Missing dependencies: ${MISSING_DEPS[*]}${NC}"
         run_cmd pkg upgrade -y
         if [ $? -ne 0 ]; then
-            log "pkg upgrade 失败"
-            echo -e "${RED}错误：pkg 升级失败${NC}"
+            log "pkg upgrade failed"
+            echo -e "${RED}Error: pkg upgrade failed${NC}"
             exit 1
         fi
         run_cmd pkg install ${MISSING_DEPS[*]} -y
         if [ $? -ne 0 ]; then
-            log "依赖安装失败"
-            echo -e "${RED}错误：依赖安装失�?{NC}"
+            log "Dependency installation failed"
+            echo -e "${RED}Error: dependency installation failed${NC}"
             exit 1
         fi
-        log "依赖安装完成"
+        log "Dependencies installed successfully"
     else
-        log "所有依赖已安装"
-        echo -e "${GREEN}�?基础环境已就�?{NC}"
+        log "All dependencies are already installed"
+        echo -e "${GREEN}Base environment is ready${NC}"
     fi
 }
 
 configure_npm() {
     # Configure NPM environment and install Openclaw
-    log "开始配�?NPM"
-    echo -e "\n${YELLOW}[2/6] 正在配置 Openclaw...${NC}"
+    log "Configuring NPM environment"
+    echo -e "\n${YELLOW}[2/6] Configuring Openclaw...${NC}"
 
-    # 配置 NPM 全局环境
+    # Configure global NPM environment
     mkdir -p "$NPM_GLOBAL"
     npm config set prefix "$NPM_GLOBAL"
     if [ $? -ne 0 ]; then
-        log "NPM 前缀设置失败"
-        echo -e "${RED}错误：NPM 前缀设置失败${NC}"
+        log "Failed to set NPM prefix"
+        echo -e "${RED}Error: failed to set NPM prefix${NC}"
         exit 1
     fi
     grep -qxF "export PATH=$NPM_BIN:$PATH" "$BASHRC" || echo "export PATH=$NPM_BIN:$PATH" >> "$BASHRC"
     export PATH="$NPM_BIN:$PATH"
 
-    # 在安装前创建必要的目录（Termux 兼容性处理）
-    log "创建 Termux 兼容性目�?"
+    # Create required directories for Termux compatibility
+    log "Creating required Termux directories"
     mkdir -p "$LOG_DIR" "$HOME/tmp"
     if [ $? -ne 0 ]; then
-        log "目录创建失败"
-        echo -e "${RED}错误：目录创建失�?{NC}"
+        log "Failed to create required directories"
+        echo -e "${RED}Error: failed to create required directories${NC}"
         exit 1
     fi
 
-    # 检查并安装/更新 Openclaw
+    # Check/install/update Openclaw
     INSTALLED_VERSION=""
     LATEST_VERSION=""
     NEED_UPDATE=0
 
-    log "检�?Openclaw 安装状�?"
+    log "Checking Openclaw installation status"
     if [ -f "$NPM_BIN/openclaw" ]; then
-        log "Openclaw 已安装，检查版�?"
-        echo -e "${BLUE}检�?Openclaw 版本...${NC}"
+        log "Openclaw already installed; checking version"
+        echo -e "${BLUE}Checking Openclaw version...${NC}"
         INSTALLED_VERSION=$(npm list -g openclaw --depth=0 2>/dev/null | grep -oE 'openclaw@[0-9]+\.[0-9]+\.[0-9]+' | cut -d@ -f2)
         if [ -z "$INSTALLED_VERSION" ]; then
-            log "版本提取失败，尝试备用方�?"
+            log "Failed to parse installed version; trying fallback"
             INSTALLED_VERSION=$(npm view openclaw version 2>/dev/null || echo "unknown")
         fi
-        echo -e "${BLUE}当前版本: $INSTALLED_VERSION${NC}"
+        echo -e "${BLUE}Current version: $INSTALLED_VERSION${NC}"
 
-        # 获取最新版�?
-        log "获取最新版本信�?"
-        echo -e "${BLUE}正在�?npm 获取最新版本信�?..${NC}"
+        # Fetch latest version
+        log "Fetching latest Openclaw version"
+        echo -e "${BLUE}Fetching latest version from npm...${NC}"
         LATEST_VERSION=$(npm view openclaw version 2>/dev/null || echo "")
 
         if [ -z "$LATEST_VERSION" ]; then
-            log "无法获取最新版本信�?"
-            echo -e "${YELLOW}⚠️  无法获取最新版本信息（可能是网络问题），保持当前版�?{NC}"
+            log "Failed to fetch latest Openclaw version"
+            echo -e "${YELLOW}Warning: unable to fetch latest version info; keeping current version${NC}"
         else
-            echo -e "${BLUE}最新版�? $LATEST_VERSION${NC}"
+            echo -e "${BLUE}Latest version: $LATEST_VERSION${NC}"
 
-            # 简单版本比�?
+            # Simple version compare
             if [ "$INSTALLED_VERSION" != "$LATEST_VERSION" ]; then
-                log "发现新版�? $LATEST_VERSION (当前: $INSTALLED_VERSION)"
-                echo -e "${YELLOW}🔔 发现新版�? $LATEST_VERSION (当前: $INSTALLED_VERSION)${NC}"
+                log "New version available: $LATEST_VERSION (current: $INSTALLED_VERSION)"
+                echo -e "${YELLOW}Update available: $LATEST_VERSION (current: $INSTALLED_VERSION)${NC}"
 
                 if [ $FORCE_UPDATE -eq 1 ]; then
-                    log "强制更新模式，直接更�?"
-                    echo -e "${YELLOW}正在更新 Openclaw...${NC}"
+                    log "Force update enabled; updating Openclaw"
+                    echo -e "${YELLOW}Updating Openclaw...${NC}"
                     run_cmd env NODE_LLAMA_CPP_SKIP_DOWNLOAD=true npm i -g openclaw
                     if [ $? -ne 0 ]; then
-                        log "Openclaw 更新失败"
-                        echo -e "${RED}错误：Openclaw 更新失败${NC}"
+                        log "Openclaw update failed"
+                        echo -e "${RED}Error: Openclaw update failed${NC}"
                         exit 1
                     fi
-                    log "Openclaw 更新完成"
-                    echo -e "${GREEN}�?Openclaw 已更新到 $LATEST_VERSION${NC}"
+                    log "Openclaw update completed"
+                    echo -e "${GREEN}Openclaw updated to $LATEST_VERSION${NC}"
                 else
-                    read -p "是否更新到新版本? (y/n) [默认: y]: " UPDATE_CHOICE
+                    read -p "Update to latest version? (y/n) [default: y]: " UPDATE_CHOICE
                     UPDATE_CHOICE=${UPDATE_CHOICE:-y}
 
                     if [ "$UPDATE_CHOICE" = "y" ] || [ "$UPDATE_CHOICE" = "Y" ]; then
-                        log "开始更�?Openclaw"
-                        echo -e "${YELLOW}正在更新 Openclaw...${NC}"
+                        log "Updating Openclaw"
+                        echo -e "${YELLOW}Updating Openclaw...${NC}"
                         run_cmd env NODE_LLAMA_CPP_SKIP_DOWNLOAD=true npm i -g openclaw
                         if [ $? -ne 0 ]; then
-                            log "Openclaw 更新失败"
-                            echo -e "${RED}错误：Openclaw 更新失败${NC}"
+                            log "Openclaw update failed"
+                            echo -e "${RED}Error: Openclaw update failed${NC}"
                             exit 1
                         fi
-                        log "Openclaw 更新完成"
-                        echo -e "${GREEN}�?Openclaw 已更新到 $LATEST_VERSION${NC}"
+                        log "Openclaw update completed"
+                        echo -e "${GREEN}Openclaw updated to $LATEST_VERSION${NC}"
                     else
-                        log "用户选择跳过更新"
-                        echo -e "${YELLOW}跳过更新，使用当前版�?{NC}"
+                        log "User skipped update"
+                        echo -e "${YELLOW}Skipping update; keeping current version${NC}"
                     fi
                 fi
             else
-                log "版本已是最�?"
-                echo -e "${GREEN}�?Openclaw 已是最新版�?$INSTALLED_VERSION${NC}"
+                log "Openclaw is already up to date"
+                echo -e "${GREEN}Openclaw is up to date: $INSTALLED_VERSION${NC}"
             fi
         fi
     else
-        log "开始安�?Openclaw"
-        echo -e "${YELLOW}正在安装 Openclaw...${NC}"
-        # 安装 Openclaw (静默安装)
-        # 设置环境变量跳过 node-llama-cpp 下载/编译（Termux 环境不支持）
+        log "Installing Openclaw"
+        echo -e "${YELLOW}Installing Openclaw...${NC}"
+        # Install Openclaw (silent mode)
+        # Skip node-llama-cpp download/build in Termux environment
         run_cmd env NODE_LLAMA_CPP_SKIP_DOWNLOAD=true npm i -g openclaw
         if [ $? -ne 0 ]; then
-            log "Openclaw 安装失败"
-            echo -e "${RED}错误：Openclaw 安装失败${NC}"
+            log "Openclaw installation failed"
+            echo -e "${RED}Error: Openclaw installation failed${NC}"
             exit 1
         fi
-        log "Openclaw 安装完成"
+        log "Openclaw installation completed"
         INSTALLED_VERSION=$(npm list -g openclaw --depth=0 2>/dev/null | grep -oE 'openclaw@[0-9]+\.[0-9]+\.[0-9]+' | cut -d@ -f2)
         if [ -z "$INSTALLED_VERSION" ]; then
             INSTALLED_VERSION=$(npm view openclaw version 2>/dev/null || echo "unknown")
         fi
-        echo -e "${GREEN}�?Openclaw 已安�?(版本: $INSTALLED_VERSION)${NC}"
+        echo -e "${GREEN}Openclaw installed (version: $INSTALLED_VERSION)${NC}"
     fi
 
     BASE_DIR="$NPM_GLOBAL/lib/node_modules/openclaw"
@@ -286,56 +286,56 @@ configure_npm() {
 
 apply_patches() {
     # Apply Android compatibility patches
-    log "开始应用补�?"
-    echo -e "${YELLOW}[3/6] 正在应用 Android 兼容性补�?..${NC}"
+    log "Applying compatibility patches"
+    echo -e "${YELLOW}[3/6] Applying Android compatibility patches...${NC}"
 
-    # 修复所有包�?/tmp/openclaw 路径的文�?
-    log "搜索并修复所有硬编码�?/tmp/openclaw 路径"
+    # Fix hardcoded /tmp/openclaw paths
+    log "Searching and fixing hardcoded /tmp/openclaw paths"
     
-    # �?openclaw 目录中搜索所有包�?/tmp/openclaw 的文�?
+    # Search all files under openclaw/dist that contain /tmp/openclaw
     cd "$BASE_DIR"
     FILES_WITH_TMP=$(grep -rl "/tmp/openclaw" dist/ 2>/dev/null || true)
     
     if [ -n "$FILES_WITH_TMP" ]; then
-        log "找到需要修复的文件"
+        log "Found files that need patching"
         for file in $FILES_WITH_TMP; do
-            log "修复文件: $file"
+            log "Patching file: $file"
             node -e "const fs = require('fs'); const file = '$BASE_DIR/$file'; let c = fs.readFileSync(file, 'utf8'); c = c.replace(/\/tmp\/openclaw/g, process.env.HOME + '/openclaw-logs'); fs.writeFileSync(file, c);"
         done
-        log "所有文件修复完�?"
+        log "Finished patching path references"
     else
-        log "未找到需要修复的文件"
+        log "No files need patching"
     fi
     
-    # 验证补丁是否生效
+    # Verify patch result
     REMAINING=$(grep -r "/tmp/openclaw" dist/ 2>/dev/null || true)
     if [ -n "$REMAINING" ]; then
-        log "补丁验证失败，仍有文件包�?/tmp/openclaw"
-        echo -e "${RED}警告：部分文件仍包含 /tmp/openclaw 路径${NC}"
-        echo -e "${YELLOW}受影响的文件�?{NC}"
+        log "Patch verification failed: /tmp/openclaw still exists"
+        echo -e "${RED}Warning: some files still contain /tmp/openclaw${NC}"
+        echo -e "${YELLOW}Affected files:${NC}"
         echo "$REMAINING"
     else
-        log "补丁验证成功，所有路径已替换"
-        echo -e "${GREEN}�?所�?/tmp/openclaw 路径已替换为 $HOME/openclaw-logs${NC}"
+        log "Patch verification succeeded"
+        echo -e "${GREEN}Replaced /tmp/openclaw with $HOME/openclaw-logs${NC}"
     fi
 
-    # 修复剪贴�?
+    # Patch clipboard implementation
     CLIP_FILE="$BASE_DIR/node_modules/@mariozechner/clipboard/index.js"
     if [ -f "$CLIP_FILE" ]; then
-        log "应用剪贴板补�?"
+        log "Applying clipboard compatibility patch"
         node -e "const fs = require('fs'); const file = '$CLIP_FILE'; const mock = 'module.exports = { availableFormats:()=>[], getText:()=>\"\", setText:()=>false, hasText:()=>false, getImageBinary:()=>null, getImageBase64:()=>null, setImageBinary:()=>false, setImageBase64:()=>false, hasImage:()=>false, getHtml:()=>\"\", setHtml:()=>false, hasHtml:()=>false, getRtf:()=>\"\", setRtf:()=>false, hasRtf:()=>false, clear:()=>{}, watch:()=>({stop:()=>{}}), callThreadsafeFunction:()=>{} };'; fs.writeFileSync(file, mock);"
         if [ $? -ne 0 ]; then
-            log "剪贴板补丁应用失�?"
-            echo -e "${RED}错误：剪贴板补丁应用失败${NC}"
+            log "Clipboard patch apply failed"
+            echo -e "${RED}Error: failed to apply clipboard patch${NC}"
             exit 1
         fi
-        # 验证补丁是否生效
+        # Verify patch result
         if ! grep -q "availableFormats" "$CLIP_FILE"; then
-            log "剪贴板补丁验证失�?"
-            echo -e "${RED}错误：剪贴板补丁未正确应用，请检查文件内�?{NC}"
+            log "Clipboard patch verification failed"
+            echo -e "${RED}Error: clipboard patch verification failed${NC}"
             exit 1
         fi
-        log "剪贴板补丁应用成�?"
+        log "Clipboard patch applied successfully"
     fi
 }
 
@@ -437,19 +437,19 @@ install_wechat_plugin() {
     fi
 
     log "OpenClaw WeChat UI plugin installed successfully"
-    echo -e "${GREEN}�?WeChat plugin installed (symlink): $PLUGIN_LINK_NAME${NC}"
+    echo -e "${GREEN}WeChat plugin installed (symlink): $PLUGIN_LINK_NAME${NC}"
 }
 
 setup_autostart() {
     # Configure autostart and aliases
     if [ "$AUTO_START" == "y" ]; then
-        log "配置自启�?"
-        # 备份�?~/.bashrc 文件
+        log "Configuring auto-start"
+        # Backup ~/.bashrc before edits
         run_cmd cp "$BASHRC" "$BASHRC.backup"
         run_cmd sed -i '/# --- Openclaw Start ---/,/# --- Openclaw End ---/d' "$BASHRC"
         if [ $? -ne 0 ]; then
-            log "bashrc 修改失败"
-            echo -e "${RED}错误：bashrc 修改失败${NC}"
+            log "Failed to modify bashrc"
+            echo -e "${RED}Error: failed to modify bashrc${NC}"
             exit 1
         fi
         cat << EOT >> "$BASHRC"
@@ -469,128 +469,128 @@ EOT
 
         source "$BASHRC"
         if [ $? -ne 0 ]; then
-            log "bashrc 加载警告"
-            echo -e "${YELLOW}警告：bashrc 加载失败，可能影响别�?{NC}"
+            log "Warning: failed to source bashrc"
+            echo -e "${YELLOW}Warning: failed to source bashrc${NC}"
         fi
-        log "自启动配置完�?"
+        log "Auto-start configuration completed"
     else
-        log "跳过自启动配�?"
+        log "Skipping auto-start configuration"
     fi
 }
 
 activate_wakelock() {
     # Activate wake lock to prevent sleep
-    log "激活唤醒锁"
-    echo -e "${YELLOW}[4/6] 激活唤醒锁...${NC}"
+    log "Activating wake lock"
+    echo -e "${YELLOW}[4/6] Activating wake lock...${NC}"
     termux-wake-lock 2>/dev/null
     if [ $? -eq 0 ]; then
-        log "唤醒锁激活成�?"
-        echo -e "${GREEN}�?Wake-lock 已激�?{NC}"
+        log "Wake lock activated"
+        echo -e "${GREEN}Wake lock activated${NC}"
     else
-        log "唤醒锁激活失�?"
-        echo -e "${YELLOW}⚠️  Wake-lock 激活失败，可能 termux-api 未正确安�?{NC}"
+        log "Wake lock activation failed"
+        echo -e "${YELLOW}Warning: wake lock activation failed, termux-api may be missing${NC}"
     fi
 }
 
 start_service() {
-    log "启动服务"
-    echo -e "${YELLOW}[5/6] 启动服务...${NC}"
+    log "Starting service"
+    echo -e "${YELLOW}[5/6] Starting service...${NC}"
 
-    # 检查是否有实例在运�?
+    # Check if an existing instance is running
     RUNNING_PROCESS=$(pgrep -f "openclaw gateway" 2>/dev/null || true)
     HAS_TMUX_SESSION=$(tmux has-session -t openclaw 2>/dev/null && echo "yes" || echo "no")
 
     if [ -n "$RUNNING_PROCESS" ] || [ "$HAS_TMUX_SESSION" = "yes" ]; then
-        log "发现已有 Openclaw 实例在运�?"
-        echo -e "${YELLOW}⚠️  检测到 Openclaw 实例已在运行${NC}"
-        echo -e "${BLUE}运行中的进程: $RUNNING_PROCESS${NC}"
-        read -p "是否停止旧实例并启动新实�? (y/n) [默认: y]: " RESTART_CHOICE
+        log "Detected existing Openclaw instance"
+        echo -e "${YELLOW}Warning: detected a running Openclaw instance${NC}"
+        echo -e "${BLUE}Running process IDs: $RUNNING_PROCESS${NC}"
+        read -p "Stop old instance and start a new one? (y/n) [default: y]: " RESTART_CHOICE
         RESTART_CHOICE=${RESTART_CHOICE:-y}
 
         if [ "$RESTART_CHOICE" = "y" ] || [ "$RESTART_CHOICE" = "Y" ]; then
-            log "停止旧实�?"
-            echo -e "${YELLOW}正在停止旧实�?..${NC}"
-            # 只停�?openclaw 相关进程，不杀死所�?node 进程
+            log "Stopping old instance"
+            echo -e "${YELLOW}Stopping old instance...${NC}"
+            # Stop only openclaw-related processes, not all node processes
             pkill -9 -f "openclaw" 2>/dev/null || true
             tmux kill-session -t openclaw 2>/dev/null || true
             sleep 1
         else
-            log "用户选择不重�?"
-            echo -e "${GREEN}跳过启动，保持当前实例运�?{NC}"
+            log "User chose not to restart"
+            echo -e "${GREEN}Skipping start; keep current instance running${NC}"
             return 0
         fi
     fi
 
-    # 2. 确保目录存在
+    # Ensure temp directory exists
     mkdir -p "$HOME/tmp"
     export TMPDIR="$HOME/tmp"
 
-    # 3. 创建会话并捕获可能的错误
-    # 这里我们先启动一�?shell，再�?shell 里执行命令，方便观察
+    # Create tmux session and start service command
+    # Start shell first, then run command inside shell for easier debugging
     tmux new -d -s openclaw
     sleep 1
     
-    # 将输出重定向到一个临时文件，如果 tmux 崩了也能看到报错
+    # Redirect output to runtime log for troubleshooting
     tmux send-keys -t openclaw "export PATH=$NPM_BIN:\$PATH TMPDIR=$HOME/tmp; export OPENCLAW_GATEWAY_TOKEN=$TOKEN; openclaw gateway --bind lan --port $PORT --token \\\$OPENCLAW_GATEWAY_TOKEN --allow-unconfigured 2>&1 | tee $LOG_DIR/runtime.log" C-m
     
-    log "服务指令已发�?"
-    echo -e "${GREEN}[6/6] 部署指令发送完�?{NC}"
+    log "Service command sent"
+    echo -e "${GREEN}[6/6] Deployment command sent${NC}"
     
-    # 4. 实时验证
+    # Verify session startup
     sleep 2
     if tmux has-session -t openclaw 2>/dev/null; then
-        echo -e "${GREEN}�?tmux 会话已建立！${NC}"
-        echo -e "请退出终端重新进入后执行: ${CYAN}oclog${NC} 查看日志；执�?openclaw onboard 进行配置"
+        echo -e "${GREEN}tmux session created successfully${NC}"
+        echo -e "Run ${CYAN}oclog${NC} to view logs, then run openclaw onboard for setup"
     else
-        echo -e "${RED}�?错误：tmux 会话启动后立即崩溃�?{NC}"
-        echo -e "请检查报错日�? ${YELLOW}cat $LOG_DIR/runtime.log${NC}"
+        echo -e "${RED}Error: tmux session crashed right after startup${NC}"
+        echo -e "Check runtime log: ${YELLOW}cat $LOG_DIR/runtime.log${NC}"
     fi
 }
 
 uninstall_openclaw() {
     # Uninstall Openclaw and clean up configurations
-    log "开始卸�?Openclaw"
-    echo -e "${YELLOW}开始卸�?Openclaw...${NC}"
+    log "Starting uninstallation"
+    echo -e "${YELLOW}Uninstalling Openclaw...${NC}"
 
-    # 停止服务
-    echo -e "${YELLOW}停止服务...${NC}"
+    # Stop service
+    echo -e "${YELLOW}Stopping services...${NC}"
     run_cmd pkill -9 node 2>/dev/null || true
     run_cmd tmux kill-session -t openclaw 2>/dev/null || true
-    log "服务已停�?"
+    log "Services stopped"
 
-    # 删除别名和配�?
-    echo -e "${YELLOW}删除别名和配�?..${NC}"
+    # Remove aliases and related config
+    echo -e "${YELLOW}Removing aliases and config...${NC}"
     run_cmd sed -i '/# --- Openclaw Start ---/,/# --- Openclaw End ---/d' "$BASHRC"
     run_cmd sed -i '/export PATH=.*\.npm-global\/bin/d' "$BASHRC"
-    log "别名和配置已删除"
+    log "Aliases and config removed"
 
-    # 恢复备份�?bashrc
+    # Restore bashrc backup
     if [ -f "$BASHRC.backup" ]; then
-        echo -e "${YELLOW}恢复原始 ~/.bashrc...${NC}"
+        echo -e "${YELLOW}Restoring ~/.bashrc...${NC}"
         run_cmd cp "$BASHRC.backup" "$BASHRC"
         run_cmd rm "$BASHRC.backup"
-        log "bashrc 已恢�?"
+        log "bashrc restored"
     fi
 
-    # 卸载 npm �?
-    echo -e "${YELLOW}卸载 Openclaw �?..${NC}"
+    # Uninstall npm package
+    echo -e "${YELLOW}Uninstalling Openclaw npm package...${NC}"
     run_cmd npm uninstall -g openclaw 2>/dev/null || true
-    log "Openclaw 包已卸载"
+    log "Openclaw npm package uninstalled"
 
-    # 删除日志和配置目�?
-    echo -e "${YELLOW}删除日志和配置目�?..${NC}"
+    # Remove logs and config directories
+    echo -e "${YELLOW}Removing logs and config directories...${NC}"
     run_cmd rm -rf "$LOG_DIR" 2>/dev/null || true
     run_cmd rm -rf "$NPM_GLOBAL" 2>/dev/null || true
-    log "日志和配置目录已删除"
+    log "Logs and config directories removed"
 
-    # 删除更新标志
+    # Remove update marker
     run_cmd rm -f "$HOME/.pkg_last_update" 2>/dev/null || true
 
-    echo -e "${GREEN}卸载完成�?{NC}"
-    log "卸载完成"
+    echo -e "${GREEN}Uninstall completed${NC}"
+    log "Uninstall completed"
 }
 
-# 主脚�?
+# Main script
 
 GREEN='\033[0;32m'
 BLUE='\033[0;34m'
@@ -598,9 +598,9 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# 检查终端是否支持颜�?
+# Check terminal color support
 if [ -t 1 ] && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
-    : # 支持，保持颜�?
+    : # Color supported, keep ANSI colors
 else
     GREEN=''
     BLUE=''
@@ -609,29 +609,29 @@ else
     NC=''
 fi
 
-# 定义常用路径变量
+# Common path variables
 BASHRC="$HOME/.bashrc"
 NPM_GLOBAL="$HOME/.npm-global"
 NPM_BIN="$NPM_GLOBAL/bin"
 LOG_DIR="$HOME/openclaw-logs"
 LOG_FILE="$LOG_DIR/install.log"
 
-# 创建日志目录（防止日志函数在目录不存在时报错�?
+# Create log directory
 mkdir -p "$LOG_DIR" 2>/dev/null || true
 
-# 日志函数
+# Log function
 log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') $1" >> "$LOG_FILE"
 }
 
-# 命令执行函数（支�?dry-run�?
+# Command runner with dry-run support
 run_cmd() {
     if [ $VERBOSE -eq 1 ]; then
-        echo "[VERBOSE] 执行: $@"
+        echo "[VERBOSE] Running: $@"
     fi
-    log "执行命令: $@"
+    log "Running command: $@"
     if [ $DRY_RUN -eq 1 ]; then
-        echo "[DRY-RUN] 跳过: $@"
+        echo "[DRY-RUN] Skipped: $@"
         return 0
     else
         "$@"
@@ -640,13 +640,13 @@ run_cmd() {
 
 clear
 if [ $DRY_RUN -eq 1 ]; then
-    echo -e "${YELLOW}🔍 模拟运行模式：不执行实际命令${NC}"
+    echo -e "${YELLOW}[DRY-RUN] Commands will not be executed${NC}"
 fi
 if [ $VERBOSE -eq 1 ]; then
-    echo -e "${BLUE}详细输出模式已启�?{NC}"
+    echo -e "${BLUE}Verbose mode enabled${NC}"
 fi
 echo -e "${BLUE}=========================================="
-echo -e "   🦞 Openclaw Termux 部署工具"
+echo -e "   Openclaw Termux Deployment Tool"
 echo -e "==========================================${NC}"
 
 # --- default config (no interactive input) ---
@@ -658,13 +658,13 @@ echo -e "${GREEN}Using default port: $PORT${NC}"
 echo -e "${GREEN}Using default random token: $TOKEN${NC}"
 echo -e "${GREEN}Using default auto-start: $AUTO_START${NC}"
 
-# 执行步骤
+# Execute steps
 if [ $UNINSTALL -eq 1 ]; then
     uninstall_openclaw
     exit 0
 fi
 
-log "脚本开始执行，用户配置: 端口=$PORT, Token=$TOKEN, 自启�?$AUTO_START"
+log "Script started with config: port=$PORT, token=$TOKEN, auto_start=$AUTO_START"
 check_deps
 configure_npm
 apply_patches
@@ -672,6 +672,6 @@ install_wechat_plugin
 setup_autostart
 activate_wakelock
 start_service
-echo -e "${GREEN}脚本执行完成�?{NC}，token为：$TOKEN  。常用命令：执行 oclog 查看运行状态； ockill 停止服务；ocr 重启服务�?"
-log "脚本执行完成"
+echo -e "${GREEN}Done. token=$TOKEN. Common commands: oclog (logs), ockill (stop), ocr (restart)${NC}"
+log "Script completed"
 
