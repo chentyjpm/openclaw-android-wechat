@@ -4,8 +4,10 @@
   "description": "OpenClaw WeChat UI channel plugin (Android client pull/push)",
   "type": "module",
   "dependencies": {
-    "openclaw": "*",
     "zod": "^4.3.6"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.1.30"
   },
   "openclaw": {
     "extensions": ["./index.ts"],

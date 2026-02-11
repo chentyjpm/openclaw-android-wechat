@@ -396,14 +396,33 @@ install_wechat_plugin() {
         return 0
     fi
 
-    # Install dependencies first in the extracted plugin directory.
-    run_cmd sh -c "cd \"$PLUGIN_EXTRACT_DIR\" && PATH=\"$NPM_BIN:\$PATH\" npm install"
+    # Install plugin dependencies (excluding dev dependencies).
+    run_cmd sh -c "cd \"$PLUGIN_EXTRACT_DIR\" && PATH=\"$NPM_BIN:\$PATH\" npm install --omit=dev --no-audit --no-fund"
     if [ $? -ne 0 ]; then
         log "Failed to run npm install in plugin directory: $PLUGIN_EXTRACT_DIR"
         echo -e "${RED}Error: npm install failed for WeChat plugin${NC}"
         exit 1
     fi
 
+
+    # Link global openclaw package into plugin node_modules to avoid local re-install.
+    GLOBAL_NODE_MODULES=$(PATH="$NPM_BIN:$PATH" npm root -g 2>/dev/null | tr -d '\r')
+    if [ -z "$GLOBAL_NODE_MODULES" ]; then
+        GLOBAL_NODE_MODULES="$NPM_GLOBAL/lib/node_modules"
+    fi
+    GLOBAL_OPENCLAW_DIR="$GLOBAL_NODE_MODULES/openclaw"
+    if [ ! -d "$GLOBAL_OPENCLAW_DIR" ]; then
+        log "Global openclaw package not found: $GLOBAL_OPENCLAW_DIR"
+        echo -e "${RED}Error: global openclaw package not found for plugin link${NC}"
+        exit 1
+    fi
+    run_cmd mkdir -p "$PLUGIN_EXTRACT_DIR/node_modules"
+    run_cmd ln -sfn "$GLOBAL_OPENCLAW_DIR" "$PLUGIN_EXTRACT_DIR/node_modules/openclaw"
+    if [ $? -ne 0 ]; then
+        log "Failed to link global openclaw into plugin node_modules"
+        echo -e "${RED}Error: failed to link global openclaw dependency${NC}"
+        exit 1
+    fi
     # Install plugin via symlink mode.
     PLUGIN_LINK_NAME=$(basename "$PLUGIN_EXTRACT_DIR")
     run_cmd sh -c "cd \"$HOME\" && PATH=\"$NPM_BIN:\$PATH\" npm_execpath=\"$NPM_CMD\" npm_node_execpath=\"$NODE_CMD\" openclaw plugins install -l \"$PLUGIN_LINK_NAME\""
