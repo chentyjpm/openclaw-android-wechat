@@ -55,6 +55,7 @@ class MyAccessibilityService : AccessibilityService() {
     private var tabScanCycleIndex = 0
     private var tabScanChangedCycleCount = 0
     private var tabScanPreviousDescList: List<String> = emptyList()
+    private var tabScanBaselineInitialized = false
     private var tabScanLastCycleFile: String? = null
     private var tabScanLastDeltaFile: String? = null
     private var tabScanTicker: Runnable? = null
@@ -211,6 +212,7 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanCycleIndex = 0
         tabScanChangedCycleCount = 0
         tabScanPreviousDescList = emptyList()
+        tabScanBaselineInitialized = false
         tabScanLastCycleFile = null
         tabScanLastDeltaFile = null
         Logger.i("TabScan started: loop mode, stepping TAB via IME every 250ms", tag = "LanBotTabScan")
@@ -336,8 +338,13 @@ class MyAccessibilityService : AccessibilityService() {
         }
         val segment = extractTabScanDescSegment(tabScanFocusedEvents)
         val currentDescList = segment?.descList ?: emptyList()
-        val addedDescList = findOrderedAddedDesc(tabScanPreviousDescList, currentDescList)
-        val changed = currentDescList != tabScanPreviousDescList
+        val baselineReadyBefore = tabScanBaselineInitialized
+        val addedDescList = if (baselineReadyBefore) {
+            findOrderedAddedDesc(tabScanPreviousDescList, currentDescList)
+        } else {
+            emptyList()
+        }
+        val changed = baselineReadyBefore && currentDescList != tabScanPreviousDescList
 
         val cycle = org.json.JSONObject()
             .put("cycle", tabScanCycleIndex)
@@ -352,6 +359,7 @@ class MyAccessibilityService : AccessibilityService() {
             .put("segment_end_index", segment?.endIndex ?: -1)
             .put("desc_count", currentDescList.size)
             .put("desc_list", org.json.JSONArray().apply { currentDescList.forEach { put(it) } })
+            .put("baseline_initialized", baselineReadyBefore)
             .put("changed", changed)
             .put("added_count", addedDescList.size)
             .put("added_contents", org.json.JSONArray().apply { addedDescList.forEach { put(it) } })
@@ -365,6 +373,15 @@ class MyAccessibilityService : AccessibilityService() {
         if (segment == null) {
             Logger.w(
                 "TabScan segment not found: start=LinearLayout end=ImageButton(${TAB_SCAN_SEGMENT_END_MARKER})",
+                tag = "LanBotTabScan",
+            )
+        }
+
+        if (!baselineReadyBefore && segment != null) {
+            tabScanBaselineInitialized = true
+            tabScanPreviousDescList = currentDescList
+            Logger.i(
+                "TabScan baseline initialized: desc_count=${currentDescList.size}, skip initial history push",
                 tag = "LanBotTabScan",
             )
         }
@@ -399,7 +416,9 @@ class MyAccessibilityService : AccessibilityService() {
             Logger.i("TabScan cycle #$tabScanCycleIndex unchanged", tag = "LanBotTabScan")
         }
 
-        tabScanPreviousDescList = currentDescList
+        if (tabScanBaselineInitialized) {
+            tabScanPreviousDescList = currentDescList
+        }
 
         if (continueLoop && tabScanActive) {
             startNextTabScanCycle()
@@ -534,7 +553,6 @@ class MyAccessibilityService : AccessibilityService() {
         windowId: Int,
         text: String,
     ) {
-        val now = System.currentTimeMillis()
         val body = org.json.JSONObject()
             .put(
                 "envelopes",
@@ -542,13 +560,7 @@ class MyAccessibilityService : AccessibilityService() {
                     org.json.JSONObject().put(
                         "tabscan_delta",
                         org.json.JSONObject()
-                            .put("id", "tabscan_delta_${cycle}_${order}_$now")
-                            .put("cycle", cycle)
-                            .put("order", order)
-                            .put("total", total)
-                            .put("window_id", windowId)
-                            .put("text", text)
-                            .put("ts_ms", now),
+                            .put("text", text),
                     ),
                 ),
             )

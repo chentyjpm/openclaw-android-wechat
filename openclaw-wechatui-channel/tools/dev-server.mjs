@@ -100,15 +100,8 @@ function logWindowState(ws) {
 
 function logTabScanDelta(delta) {
   if (!delta || typeof delta !== "object" || Array.isArray(delta)) return;
-  const id = String(delta.id ?? "").trim();
-  const cycle = parseNumber(delta.cycle, -1);
-  const order = parseNumber(delta.order, -1);
-  const total = parseNumber(delta.total, -1);
-  const windowId = parseNumber(delta.window_id, -1);
   const text = String(delta.text ?? "");
-  console.log(
-    `[dev-server] tabscan_delta id=${id} cycle=${cycle} order=${order}/${total} window_id=${windowId} text=${JSON.stringify(text)}`,
-  );
+  console.log(`[dev-server] tabscan_delta text=${JSON.stringify(text)}`);
 }
 
 function handleClientPush(body, res) {
