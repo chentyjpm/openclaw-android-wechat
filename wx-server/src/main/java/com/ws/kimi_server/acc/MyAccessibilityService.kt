@@ -391,7 +391,7 @@ class MyAccessibilityService : AccessibilityService() {
                         text = content,
                     )
                 }
-                pushAddedMessagesToOpenClawWx(addedDescList, segment)
+                pushAddedMessagesToClientPush(addedDescList, segment)
             }
             tabScanLastDeltaFile = saveTabScanDeltaToSdcard(deltaString)
             Logger.i("TabScan delta file: ${tabScanLastDeltaFile ?: "<failed>"}", tag = "LanBotTabScan")
@@ -494,7 +494,7 @@ class MyAccessibilityService : AccessibilityService() {
         return added
     }
 
-    private fun pushAddedMessagesToOpenClawWx(
+    private fun pushAddedMessagesToClientPush(
         addedDescList: List<String>,
         segment: TabScanDescSegment?,
     ) {
@@ -502,7 +502,7 @@ class MyAccessibilityService : AccessibilityService() {
 
         val cfg = com.ws.wx_server.link.LinkConfigStore.load(applicationContext)
         val scheme = if (cfg.useTls) "https" else "http"
-        val pushUrl = "$scheme://${cfg.host}:${cfg.port}$TAB_SCAN_CHANNEL_PUSH_PATH"
+        val pushUrl = "$scheme://${cfg.host}:${cfg.port}$TAB_SCAN_CLIENT_PUSH_PATH"
         val windowId = segment?.windowId ?: -1
         val cycle = tabScanCycleIndex
         Logger.i(
@@ -534,8 +534,22 @@ class MyAccessibilityService : AccessibilityService() {
         windowId: Int,
         text: String,
     ) {
+        val now = System.currentTimeMillis()
         val body = org.json.JSONObject()
-            .put("text", text)
+            .put(
+                "envelopes",
+                org.json.JSONArray().put(
+                    org.json.JSONObject().put(
+                        "ack",
+                        org.json.JSONObject()
+                            .put("request_id", "tabscan_delta_${cycle}_${order}_$now")
+                            .put("ok", true)
+                            .put("stage", "TABSCAN_DELTA")
+                            .put("detail", text)
+                            .put("ts_ms", now),
+                    ),
+                ),
+            )
             .toString()
         val req = Request.Builder()
             .url(pushUrl)
@@ -960,7 +974,7 @@ class MyAccessibilityService : AccessibilityService() {
         private const val TAB_SCAN_SEGMENT_START_CLS = "android.widget.LinearLayout"
         private const val TAB_SCAN_SEGMENT_END_CLS = "android.widget.ImageButton"
         private const val TAB_SCAN_SEGMENT_END_MARKER = "切换到按住说话"
-        private const val TAB_SCAN_CHANNEL_PUSH_PATH = "/openclawwx/push"
+        private const val TAB_SCAN_CLIENT_PUSH_PATH = "/client/push"
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
         const val ACTION_SNAPSHOT = "com.ws.wx_server.ACC_SNAPSHOT"
         const val ACTION_CONNECTED = "com.ws.wx_server.ACC_CONNECTED"
