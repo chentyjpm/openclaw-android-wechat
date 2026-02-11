@@ -391,7 +391,7 @@ class MyAccessibilityService : AccessibilityService() {
                         text = content,
                     )
                 }
-                pushMentionHitsToWeChatUiChannel(addedDescList, segment)
+                pushAddedMessagesToOpenClawWx(addedDescList, segment)
             }
             tabScanLastDeltaFile = saveTabScanDeltaToSdcard(deltaString)
             Logger.i("TabScan delta file: ${tabScanLastDeltaFile ?: "<failed>"}", tag = "LanBotTabScan")
@@ -494,12 +494,11 @@ class MyAccessibilityService : AccessibilityService() {
         return added
     }
 
-    private fun pushMentionHitsToWeChatUiChannel(
+    private fun pushAddedMessagesToOpenClawWx(
         addedDescList: List<String>,
         segment: TabScanDescSegment?,
     ) {
-        val hits = addedDescList.filter { it.contains(TAB_SCAN_MENTION_KEYWORD) }
-        if (hits.isEmpty()) return
+        if (addedDescList.isEmpty()) return
 
         val cfg = com.ws.wx_server.link.LinkConfigStore.load(applicationContext)
         val scheme = if (cfg.useTls) "https" else "http"
@@ -507,15 +506,15 @@ class MyAccessibilityService : AccessibilityService() {
         val windowId = segment?.windowId ?: -1
         val cycle = tabScanCycleIndex
         Logger.i(
-            "TabScan mention hits=${hits.size} keyword=${TAB_SCAN_MENTION_KEYWORD} -> $pushUrl",
+            "TabScan push added_messages=${addedDescList.size} -> $pushUrl",
             tag = "LanBotTabScan",
         )
 
-        hits.forEachIndexed { index, text ->
+        addedDescList.forEachIndexed { index, text ->
             val order = index + 1
-            val total = hits.size
+            val total = addedDescList.size
             tabScanPushExecutor.execute {
-                postMentionPush(
+                postAddedMessagePush(
                     pushUrl = pushUrl,
                     cycle = cycle,
                     order = order,
@@ -527,7 +526,7 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun postMentionPush(
+    private fun postAddedMessagePush(
         pushUrl: String,
         cycle: Int,
         order: Int,
@@ -553,19 +552,19 @@ class MyAccessibilityService : AccessibilityService() {
                 if (!resp.isSuccessful) {
                     val respBody = resp.body?.string().orEmpty()
                     Logger.w(
-                        "TabScan mention push failed [$order/$total] http=${resp.code} body=$respBody",
+                        "TabScan added push failed [$order/$total] http=${resp.code} body=$respBody",
                         tag = "LanBotTabScan",
                     )
                     return
                 }
                 Logger.i(
-                    "TabScan mention pushed [$order/$total] cycle=$cycle windowId=$windowId",
+                    "TabScan added pushed [$order/$total] cycle=$cycle windowId=$windowId",
                     tag = "LanBotTabScan",
                 )
             }
         } catch (t: Throwable) {
             Logger.w(
-                "TabScan mention push exception [$order/$total]: ${t.message}",
+                "TabScan added push exception [$order/$total]: ${t.message}",
                 tag = "LanBotTabScan",
             )
         }
@@ -980,8 +979,7 @@ class MyAccessibilityService : AccessibilityService() {
         private const val TAB_SCAN_SEGMENT_START_CLS = "android.widget.LinearLayout"
         private const val TAB_SCAN_SEGMENT_END_CLS = "android.widget.ImageButton"
         private const val TAB_SCAN_SEGMENT_END_MARKER = "切换到按住说话"
-        private const val TAB_SCAN_MENTION_KEYWORD = "@龙虾钳"
-        private const val TAB_SCAN_CHANNEL_PUSH_PATH = "/huixiangdou/push"
+        private const val TAB_SCAN_CHANNEL_PUSH_PATH = "/openclawwx/push"
         private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
         const val ACTION_SNAPSHOT = "com.ws.wx_server.ACC_SNAPSHOT"
         const val ACTION_CONNECTED = "com.ws.wx_server.ACC_CONNECTED"

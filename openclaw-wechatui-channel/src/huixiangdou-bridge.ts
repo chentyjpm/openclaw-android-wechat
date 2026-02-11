@@ -27,7 +27,7 @@ type Rsp = { code: number; state: string; text: string; references: string[] };
 type QueryResponsePair = { req: Required<UserInfo>; rsp: Rsp };
 type ChatResponse = { msg: string; msgCode: number; data: QueryResponsePair[] };
 
-const DEFAULT_BRIDGE_PATH = "/huixiangdou";
+const DEFAULT_BRIDGE_PATH = "/openclawwx";
 const bridgeTargets = new Map<string, HuixiangdouBridgeTarget[]>();
 
 type PushPayload = {
@@ -258,6 +258,11 @@ export function resolveHuixiangdouBridgePathFromConfig(config?: { androidWebhook
   return raw ? normalizeWebhookPath(raw) : DEFAULT_BRIDGE_PATH;
 }
 
+export function resolveHuixiangdouBridgePullPathFromConfig(config?: { androidWebhookPath?: string | null }): string {
+  const base = resolveHuixiangdouBridgePathFromConfig(config);
+  return normalizeWebhookPath(`${base}/pull`);
+}
+
 export function resolveHuixiangdouBridgePushPathFromConfig(config?: { androidWebhookPath?: string | null }): string {
   const base = resolveHuixiangdouBridgePathFromConfig(config);
   return normalizeWebhookPath(`${base}/push`);
@@ -383,7 +388,8 @@ export async function handleHuixiangdouBridgeRequest(
   }
 
   const parsed = normalizeUserInfo(raw as UserInfo);
-  const qType = parsed.query.type;
+  const qType = safeString(parsed.query.type).toLowerCase();
+  const effectiveType = qType || "poll";
 
   const target = selectSingleTarget(targets, req);
   if (!target) {
@@ -393,7 +399,7 @@ export async function handleHuixiangdouBridgeRequest(
 
   target.statusSink?.({ lastInboundAt: Date.now() });
 
-  if (qType === "text") {
+  if (effectiveType === "text") {
     const text = safeString(parsed.query.content);
     if (!text.trim()) {
       json(res, 200, { msg: "empty text", msgCode: 0, data: [] } satisfies ChatResponse);
@@ -404,7 +410,7 @@ export async function handleHuixiangdouBridgeRequest(
     return true;
   }
 
-  if (qType === "poll") {
+  if (effectiveType === "poll") {
     let data = drainQueued(target, parsed);
     if (data.length === 0) {
       const waitMs = typeof target.account.config.androidLongPollMs === "number" ? target.account.config.androidLongPollMs : 0;

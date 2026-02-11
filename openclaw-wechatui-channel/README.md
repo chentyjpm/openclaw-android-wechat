@@ -44,14 +44,14 @@ Add to your config:
 
 ```toml
 [channels.wechatui]
-androidWebhookPath = "/huixiangdou"
+androidWebhookPath = "/openclawwx"
 # Optional auth (Android must send this in `Authorization: Bearer ...` or `X-Huixiangdou-Secret`)
 # androidWebhookSecret = "CHANGE_ME"
 ```
 
 Then in the Android app (Huixiangdou UI), set URL to:
 
-`http://GATEWAY_LAN_IP:18789/huixiangdou`
+`http://GATEWAY_LAN_IP:18789/openclawwx/pull`
 
 ### Long polling (recommended)
 
@@ -67,7 +67,7 @@ androidLongPollMs = 25000
 
 You can also enqueue a message to the Android client (it will be delivered on its next `poll`):
 
-`POST http://GATEWAY_LAN_IP:18789/huixiangdou/push`
+`POST http://GATEWAY_LAN_IP:18789/openclawwx/push`
 
 Body example:
 

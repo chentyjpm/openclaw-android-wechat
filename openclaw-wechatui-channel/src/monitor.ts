@@ -7,6 +7,7 @@ import { WeChatUiConfigSchema } from "./config-schema.js";
 import {
   registerHuixiangdouBridgeTarget,
   resolveHuixiangdouBridgePathFromConfig,
+  resolveHuixiangdouBridgePullPathFromConfig,
   resolveHuixiangdouBridgePushPathFromConfig,
 } from "./huixiangdou-bridge.js";
 import { sendWeChatUiMedia, sendWeChatUiText } from "./send.js";
@@ -328,7 +329,8 @@ export async function monitorWeChatUiProvider(params: {
   // Validate config early.
   WeChatUiConfigSchema.parse((params.cfg.channels?.["wechatui"] ?? {}) as unknown);
   const webhookPath = resolveWebhookPathFromConfig(account.config);
-  const androidWebhookPath = resolveHuixiangdouBridgePathFromConfig(account.config);
+  const androidWebhookBasePath = resolveHuixiangdouBridgePathFromConfig(account.config);
+  const androidPullPath = resolveHuixiangdouBridgePullPathFromConfig(account.config);
   const androidPushPath = resolveHuixiangdouBridgePushPathFromConfig(account.config);
   const unregister = registerWeChatUiWebhookTarget({
     account,
@@ -343,7 +345,7 @@ export async function monitorWeChatUiProvider(params: {
     config: params.cfg,
     runtime: params.runtime,
     core,
-    path: androidWebhookPath,
+    path: androidPullPath,
     statusSink: params.statusSink,
   });
   const unregisterAndroidPush = registerHuixiangdouBridgeTarget({
@@ -356,8 +358,9 @@ export async function monitorWeChatUiProvider(params: {
   });
 
   params.runtime.log?.(`[${account.accountId}] [wechatui] webhook listening on ${webhookPath}`);
-  params.runtime.log?.(`[${account.accountId}] [huixiangdou-bridge] listening on ${androidWebhookPath}`);
-  params.runtime.log?.(`[${account.accountId}] [huixiangdou-bridge] push endpoint on ${androidPushPath}`);
+  params.runtime.log?.(`[${account.accountId}] [openclawwx] base path ${androidWebhookBasePath}`);
+  params.runtime.log?.(`[${account.accountId}] [openclawwx] pull endpoint on ${androidPullPath}`);
+  params.runtime.log?.(`[${account.accountId}] [openclawwx] push endpoint on ${androidPushPath}`);
 
   const stop = () => {
     unregister();
