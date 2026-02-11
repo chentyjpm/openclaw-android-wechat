@@ -54,9 +54,9 @@ while [[ $# -gt 0 ]]; do
             echo "选项:"
             echo "  --verbose, -v    启用详细输出"
             echo "  --dry-run, -d    模拟运行，不执行实际命令"
-            echo "  --uninstall, -u  卸载 Openclaw 和相关配�?
-            echo "  --update, -U     强制更新到最新版�?
-            echo "  --help, -h       显示此帮助信�?
+            echo "  --uninstall, -u  卸载 Openclaw 和相关配�?"
+            echo "  --update, -U     强制更新到最新版�?"
+            echo "  --help, -h       显示此帮助信�?"
             exit 0
             ;;
         *)
@@ -93,7 +93,7 @@ check_deps() {
         run_cmd touch "$UPDATE_FLAG"
         log "pkg update 完成"
     else
-        log "跳过 pkg update（已更新�?
+        log "跳过 pkg update（已更新�?"
         echo -e "${GREEN}包列表已是最�?{NC}"
     fi
 
@@ -186,7 +186,7 @@ configure_npm() {
     export PATH="$NPM_BIN:$PATH"
 
     # 在安装前创建必要的目录（Termux 兼容性处理）
-    log "创建 Termux 兼容性目�?
+    log "创建 Termux 兼容性目�?"
     mkdir -p "$LOG_DIR" "$HOME/tmp"
     if [ $? -ne 0 ]; then
         log "目录创建失败"
@@ -199,24 +199,24 @@ configure_npm() {
     LATEST_VERSION=""
     NEED_UPDATE=0
 
-    log "检�?Openclaw 安装状�?
+    log "检�?Openclaw 安装状�?"
     if [ -f "$NPM_BIN/openclaw" ]; then
-        log "Openclaw 已安装，检查版�?
+        log "Openclaw 已安装，检查版�?"
         echo -e "${BLUE}检�?Openclaw 版本...${NC}"
         INSTALLED_VERSION=$(npm list -g openclaw --depth=0 2>/dev/null | grep -oE 'openclaw@[0-9]+\.[0-9]+\.[0-9]+' | cut -d@ -f2)
         if [ -z "$INSTALLED_VERSION" ]; then
-            log "版本提取失败，尝试备用方�?
+            log "版本提取失败，尝试备用方�?"
             INSTALLED_VERSION=$(npm view openclaw version 2>/dev/null || echo "unknown")
         fi
         echo -e "${BLUE}当前版本: $INSTALLED_VERSION${NC}"
 
         # 获取最新版�?
-        log "获取最新版本信�?
+        log "获取最新版本信�?"
         echo -e "${BLUE}正在�?npm 获取最新版本信�?..${NC}"
         LATEST_VERSION=$(npm view openclaw version 2>/dev/null || echo "")
 
         if [ -z "$LATEST_VERSION" ]; then
-            log "无法获取最新版本信�?
+            log "无法获取最新版本信�?"
             echo -e "${YELLOW}⚠️  无法获取最新版本信息（可能是网络问题），保持当前版�?{NC}"
         else
             echo -e "${BLUE}最新版�? $LATEST_VERSION${NC}"
@@ -227,7 +227,7 @@ configure_npm() {
                 echo -e "${YELLOW}🔔 发现新版�? $LATEST_VERSION (当前: $INSTALLED_VERSION)${NC}"
 
                 if [ $FORCE_UPDATE -eq 1 ]; then
-                    log "强制更新模式，直接更�?
+                    log "强制更新模式，直接更�?"
                     echo -e "${YELLOW}正在更新 Openclaw...${NC}"
                     run_cmd env NODE_LLAMA_CPP_SKIP_DOWNLOAD=true npm i -g openclaw
                     if [ $? -ne 0 ]; then
@@ -258,7 +258,7 @@ configure_npm() {
                     fi
                 fi
             else
-                log "版本已是最�?
+                log "版本已是最�?"
                 echo -e "${GREEN}�?Openclaw 已是最新版�?$INSTALLED_VERSION${NC}"
             fi
         fi
@@ -286,7 +286,7 @@ configure_npm() {
 
 apply_patches() {
     # Apply Android compatibility patches
-    log "开始应用补�?
+    log "开始应用补�?"
     echo -e "${YELLOW}[3/6] 正在应用 Android 兼容性补�?..${NC}"
 
     # 修复所有包�?/tmp/openclaw 路径的文�?
@@ -302,7 +302,7 @@ apply_patches() {
             log "修复文件: $file"
             node -e "const fs = require('fs'); const file = '$BASE_DIR/$file'; let c = fs.readFileSync(file, 'utf8'); c = c.replace(/\/tmp\/openclaw/g, process.env.HOME + '/openclaw-logs'); fs.writeFileSync(file, c);"
         done
-        log "所有文件修复完�?
+        log "所有文件修复完�?"
     else
         log "未找到需要修复的文件"
     fi
@@ -322,20 +322,20 @@ apply_patches() {
     # 修复剪贴�?
     CLIP_FILE="$BASE_DIR/node_modules/@mariozechner/clipboard/index.js"
     if [ -f "$CLIP_FILE" ]; then
-        log "应用剪贴板补�?
+        log "应用剪贴板补�?"
         node -e "const fs = require('fs'); const file = '$CLIP_FILE'; const mock = 'module.exports = { availableFormats:()=>[], getText:()=>\"\", setText:()=>false, hasText:()=>false, getImageBinary:()=>null, getImageBase64:()=>null, setImageBinary:()=>false, setImageBase64:()=>false, hasImage:()=>false, getHtml:()=>\"\", setHtml:()=>false, hasHtml:()=>false, getRtf:()=>\"\", setRtf:()=>false, hasRtf:()=>false, clear:()=>{}, watch:()=>({stop:()=>{}}), callThreadsafeFunction:()=>{} };'; fs.writeFileSync(file, mock);"
         if [ $? -ne 0 ]; then
-            log "剪贴板补丁应用失�?
+            log "剪贴板补丁应用失�?"
             echo -e "${RED}错误：剪贴板补丁应用失败${NC}"
             exit 1
         fi
         # 验证补丁是否生效
         if ! grep -q "availableFormats" "$CLIP_FILE"; then
-            log "剪贴板补丁验证失�?
+            log "剪贴板补丁验证失�?"
             echo -e "${RED}错误：剪贴板补丁未正确应用，请检查文件内�?{NC}"
             exit 1
         fi
-        log "剪贴板补丁应用成�?
+        log "剪贴板补丁应用成�?"
     fi
 }
 
@@ -424,7 +424,7 @@ install_wechat_plugin() {
 setup_autostart() {
     # Configure autostart and aliases
     if [ "$AUTO_START" == "y" ]; then
-        log "配置自启�?
+        log "配置自启�?"
         # 备份�?~/.bashrc 文件
         run_cmd cp "$BASHRC" "$BASHRC.backup"
         run_cmd sed -i '/# --- Openclaw Start ---/,/# --- Openclaw End ---/d' "$BASHRC"
@@ -453,9 +453,9 @@ EOT
             log "bashrc 加载警告"
             echo -e "${YELLOW}警告：bashrc 加载失败，可能影响别�?{NC}"
         fi
-        log "自启动配置完�?
+        log "自启动配置完�?"
     else
-        log "跳过自启动配�?
+        log "跳过自启动配�?"
     fi
 }
 
@@ -465,10 +465,10 @@ activate_wakelock() {
     echo -e "${YELLOW}[4/6] 激活唤醒锁...${NC}"
     termux-wake-lock 2>/dev/null
     if [ $? -eq 0 ]; then
-        log "唤醒锁激活成�?
+        log "唤醒锁激活成�?"
         echo -e "${GREEN}�?Wake-lock 已激�?{NC}"
     else
-        log "唤醒锁激活失�?
+        log "唤醒锁激活失�?"
         echo -e "${YELLOW}⚠️  Wake-lock 激活失败，可能 termux-api 未正确安�?{NC}"
     fi
 }
@@ -482,21 +482,21 @@ start_service() {
     HAS_TMUX_SESSION=$(tmux has-session -t openclaw 2>/dev/null && echo "yes" || echo "no")
 
     if [ -n "$RUNNING_PROCESS" ] || [ "$HAS_TMUX_SESSION" = "yes" ]; then
-        log "发现已有 Openclaw 实例在运�?
+        log "发现已有 Openclaw 实例在运�?"
         echo -e "${YELLOW}⚠️  检测到 Openclaw 实例已在运行${NC}"
         echo -e "${BLUE}运行中的进程: $RUNNING_PROCESS${NC}"
         read -p "是否停止旧实例并启动新实�? (y/n) [默认: y]: " RESTART_CHOICE
         RESTART_CHOICE=${RESTART_CHOICE:-y}
 
         if [ "$RESTART_CHOICE" = "y" ] || [ "$RESTART_CHOICE" = "Y" ]; then
-            log "停止旧实�?
+            log "停止旧实�?"
             echo -e "${YELLOW}正在停止旧实�?..${NC}"
             # 只停�?openclaw 相关进程，不杀死所�?node 进程
             pkill -9 -f "openclaw" 2>/dev/null || true
             tmux kill-session -t openclaw 2>/dev/null || true
             sleep 1
         else
-            log "用户选择不重�?
+            log "用户选择不重�?"
             echo -e "${GREEN}跳过启动，保持当前实例运�?{NC}"
             return 0
         fi
@@ -514,7 +514,7 @@ start_service() {
     # 将输出重定向到一个临时文件，如果 tmux 崩了也能看到报错
     tmux send-keys -t openclaw "export PATH=$NPM_BIN:\$PATH TMPDIR=$HOME/tmp; export OPENCLAW_GATEWAY_TOKEN=$TOKEN; openclaw gateway --bind lan --port $PORT --token \\\$OPENCLAW_GATEWAY_TOKEN --allow-unconfigured 2>&1 | tee $LOG_DIR/runtime.log" C-m
     
-    log "服务指令已发�?
+    log "服务指令已发�?"
     echo -e "${GREEN}[6/6] 部署指令发送完�?{NC}"
     
     # 4. 实时验证
@@ -537,7 +537,7 @@ uninstall_openclaw() {
     echo -e "${YELLOW}停止服务...${NC}"
     run_cmd pkill -9 node 2>/dev/null || true
     run_cmd tmux kill-session -t openclaw 2>/dev/null || true
-    log "服务已停�?
+    log "服务已停�?"
 
     # 删除别名和配�?
     echo -e "${YELLOW}删除别名和配�?..${NC}"
@@ -550,7 +550,7 @@ uninstall_openclaw() {
         echo -e "${YELLOW}恢复原始 ~/.bashrc...${NC}"
         run_cmd cp "$BASHRC.backup" "$BASHRC"
         run_cmd rm "$BASHRC.backup"
-        log "bashrc 已恢�?
+        log "bashrc 已恢�?"
     fi
 
     # 卸载 npm �?
@@ -653,6 +653,6 @@ install_wechat_plugin
 setup_autostart
 activate_wakelock
 start_service
-echo -e "${GREEN}脚本执行完成�?{NC}，token为：$TOKEN  。常用命令：执行 oclog 查看运行状态； ockill 停止服务；ocr 重启服务�?
+echo -e "${GREEN}脚本执行完成�?{NC}，token为：$TOKEN  。常用命令：执行 oclog 查看运行状态； ockill 停止服务；ocr 重启服务�?"
 log "脚本执行完成"
 
