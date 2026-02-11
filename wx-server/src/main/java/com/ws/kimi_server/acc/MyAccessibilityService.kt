@@ -52,7 +52,7 @@ class MyAccessibilityService : AccessibilityService() {
         Logger.i("Accessibility connected")
         val cfg = com.ws.wx_server.link.LinkConfigStore.load(applicationContext)
         Logger.i("AccDebug config: events=${cfg.debugEvents} xml=${cfg.debugXml} capture=${cfg.captureStrategy}")
-        if (cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST) {
+        if (cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST && cfg.ocrEnabled) {
             Thread {
                 val ok = ppOcrRecognizer.warmUp()
                 Logger.i("NCNN OCR warmup result=$ok", tag = "LanBotOCR")
@@ -163,6 +163,7 @@ class MyAccessibilityService : AccessibilityService() {
             now = now,
             force = force,
             strategy = cfg.captureStrategy,
+            ocrEnabled = cfg.ocrEnabled,
         )
         capture?.let {
             recognizedText = it.text
@@ -206,6 +207,7 @@ class MyAccessibilityService : AccessibilityService() {
         now: Long,
         force: Boolean,
         strategy: String,
+        ocrEnabled: Boolean,
     ): CapturedPayload? {
         val shouldCapture = strategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
             pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG
@@ -222,7 +224,7 @@ class MyAccessibilityService : AccessibilityService() {
             Logger.i("OCR skip capture: throttled", tag = "LanBotOCR")
             return null
         }
-        val captured = captureScreenFrame() ?: return null
+        val captured = captureScreenFrame(ocrEnabled = ocrEnabled) ?: return null
         lastCaptureAt = now
         return CapturedPayload(
             payload = TaskBridge.CapturePayload(
@@ -256,7 +258,7 @@ class MyAccessibilityService : AccessibilityService() {
         val ocrPayload: TaskBridge.OcrPayloadData?,
     )
 
-    private fun captureScreenFrame(): CapturedFrame? {
+    private fun captureScreenFrame(ocrEnabled: Boolean): CapturedFrame? {
         val projected = try {
             ScreenCaptureManager.captureBitmap(applicationContext, timeoutMs = 600L)
         } catch (t: Throwable) {
@@ -264,21 +266,23 @@ class MyAccessibilityService : AccessibilityService() {
             null
         }
         if (projected != null) {
-            return bitmapToFrame(projected, "media_projection")
+            return bitmapToFrame(projected, "media_projection", ocrEnabled)
         }
         Logger.i("OCR skip capture: media projection unavailable", tag = "LanBotOCR")
         return null
     }
 
-    private fun bitmapToFrame(source: Bitmap, mode: String): CapturedFrame? {
+    private fun bitmapToFrame(source: Bitmap, mode: String, ocrEnabled: Boolean): CapturedFrame? {
         val scaled = scaleBitmap(source, CAPTURE_MAX_WIDTH)
         val outputWidth = scaled.width
         val outputHeight = scaled.height
-        val ocrResult = try {
-            ppOcrRecognizer.recognizeDetailed(scaled)
-        } catch (_: Throwable) {
-            null
-        }
+        val ocrResult = if (ocrEnabled) {
+            try {
+                ppOcrRecognizer.recognizeDetailed(scaled)
+            } catch (_: Throwable) {
+                null
+            }
+        } else null
         val ocrText = ocrResult?.text ?: ""
         val ocrJson = ocrResult?.let { toOcrJson(it) }
         val ocrPayload = ocrResult?.let { toOcrPayload(it) }

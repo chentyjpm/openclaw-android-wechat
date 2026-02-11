@@ -14,6 +14,7 @@ data class ServerConfig(
     val debugEvents: Boolean = false,
     val debugXml: Boolean = false,
     val captureStrategy: String = CAPTURE_STRATEGY_SCREEN_FIRST,
+    val ocrEnabled: Boolean = true,
 )
 
 object LinkConfigStore {
@@ -25,6 +26,7 @@ object LinkConfigStore {
     private const val K_DEBUG_EVENTS = "debug"
     private const val K_DEBUG_XML = "debug_xml"
     private const val K_CAPTURE_STRATEGY = "capture_strategy"
+    private const val K_OCR_ENABLED = "ocr_enabled"
 
     fun load(ctx: Context): ServerConfig {
         val sp = prefs(ctx)
@@ -39,6 +41,7 @@ object LinkConfigStore {
             captureStrategy = sp.getString(K_CAPTURE_STRATEGY, def.captureStrategy)
                 ?.takeIf { it == CAPTURE_STRATEGY_SCREEN_FIRST || it == CAPTURE_STRATEGY_NODE_ONLY }
                 ?: def.captureStrategy,
+            ocrEnabled = sp.getBoolean(K_OCR_ENABLED, def.ocrEnabled),
         )
     }
 
@@ -51,6 +54,7 @@ object LinkConfigStore {
             .putBoolean(K_DEBUG_EVENTS, cfg.debugEvents)
             .putBoolean(K_DEBUG_XML, cfg.debugXml)
             .putString(K_CAPTURE_STRATEGY, cfg.captureStrategy)
+            .putBoolean(K_OCR_ENABLED, cfg.ocrEnabled)
             .apply()
     }
 

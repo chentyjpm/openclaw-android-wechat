@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent">
@@ -12,7 +12,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="服务器地址" />
+            android:text="Server Host" />
 
         <EditText
             android:id="@+id/et_host"
@@ -24,7 +24,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="HTTP端口" />
+            android:text="HTTP Port" />
 
         <EditText
             android:id="@+id/et_port"
@@ -36,7 +36,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="KeepAlive(秒，>=20)" />
+            android:text="KeepAlive (seconds, >=20)" />
 
         <EditText
             android:id="@+id/et_keepalive"
@@ -49,30 +49,36 @@
             android:id="@+id/cb_tls"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="启用TLS" />
+            android:text="Enable TLS" />
 
         <CheckBox
             android:id="@+id/cb_debug"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="调试事件" />
+            android:text="Debug Events" />
 
         <CheckBox
             android:id="@+id/cb_debug_xml"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="调试XML" />
+            android:text="Debug XML" />
 
         <CheckBox
             android:id="@+id/cb_capture_screen"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="使用无障碍录屏采集（推荐）" />
+            android:text="Use Screen Capture Strategy" />
+
+        <CheckBox
+            android:id="@+id/cb_ocr_enabled"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Enable OCR" />
 
         <Button
             android:id="@+id/btn_save"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="保存" />
+            android:text="Save" />
     </LinearLayout>
 </ScrollView>
