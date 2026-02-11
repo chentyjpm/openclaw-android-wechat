@@ -344,6 +344,7 @@ install_wechat_plugin() {
     log "Installing OpenClaw WeChat UI plugin"
     echo -e "${YELLOW}[4/7] Installing WeChat plugin...${NC}"
 
+    PLUGIN_NAME="openclaw-wechatui-channel"
     PLUGIN_TAR="$HOME/openclaw-wechatui-channel.tar"
     PLUGIN_EXTRACT_DIR="$HOME/openclaw-wechatui-channel"
 
@@ -386,6 +387,13 @@ install_wechat_plugin() {
         log "Missing runtime command(s): node=$NODE_CMD npm=$NPM_CMD openclaw=$OPENCLAW_CMD"
         echo -e "${RED}Error: missing node/npm/openclaw command before plugin install${NC}"
         exit 1
+    fi
+
+    # Skip if plugin already exists.
+    if env PATH="$NPM_BIN:$PATH" "$OPENCLAW_CMD" plugins list 2>/dev/null | grep -Eq "(^|[[:space:]])$PLUGIN_NAME([[:space:]]|$)"; then
+        log "Plugin already installed, skip install: $PLUGIN_NAME"
+        echo -e "${GREEN}Plugin already installed, skip: $PLUGIN_NAME${NC}"
+        return 0
     fi
 
     # Install dependencies first in the extracted plugin directory.
