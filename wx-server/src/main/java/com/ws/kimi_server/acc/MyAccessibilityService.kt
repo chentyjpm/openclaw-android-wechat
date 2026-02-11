@@ -29,6 +29,7 @@ class MyAccessibilityService : AccessibilityService() {
     private var lastCls: String = ""
     private val ppOcrRecognizer by lazy { PPOcrRecognizer(applicationContext) }
     private var lastLoggedOcrText: String? = null
+    private var lastLoggedOcrJson: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -176,6 +177,7 @@ class MyAccessibilityService : AccessibilityService() {
         }
         intent.putExtra(EXTRA_TEXT, recognizedText)
         maybeLogOcrTextChange(recognizedText)
+        maybeLogOcrJsonChange(capture?.ocrJson)
 
         TaskBridge.sendWindowState(
             pkg = pkg,
@@ -354,6 +356,18 @@ class MyAccessibilityService : AccessibilityService() {
         lastLoggedOcrText = normalized
         val preview = if (normalized.isEmpty()) "<EMPTY>" else normalized.take(200)
         Logger.i("NCNN OCR changed: $preview", tag = "LanBotOCR")
+    }
+
+    private fun maybeLogOcrJsonChange(ocrJson: String?) {
+        val normalized = ocrJson?.trim().orEmpty()
+        if (normalized == lastLoggedOcrJson) return
+        lastLoggedOcrJson = normalized
+        if (normalized.isEmpty()) {
+            Logger.i("NCNN OCR boxes changed: <EMPTY>", tag = "LanBotOCR")
+            return
+        }
+        val preview = if (normalized.length <= 1500) normalized else normalized.take(1500) + "...(truncated)"
+        Logger.i("NCNN OCR boxes changed: $preview", tag = "LanBotOCR")
     }
 
     private fun extractNotificationTitle(event: AccessibilityEvent): String? {
