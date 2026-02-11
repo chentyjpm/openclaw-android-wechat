@@ -4,6 +4,9 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -285,10 +288,11 @@ class MyAccessibilityService : AccessibilityService() {
             source.recycle()
             return null
         }
+        val overlayJpeg = buildOverlayJpeg(scaled, ocrPayload)
         if (scaled !== source) scaled.recycle()
         source.recycle()
         val bytes = out.toByteArray()
-        saveOcrCaptureToSdcard(bytes, ocrText)
+        saveOcrCaptureToSdcard(bytes, overlayJpeg, ocrText)
         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
         return CapturedFrame(
             mode = mode,
@@ -354,7 +358,65 @@ class MyAccessibilityService : AccessibilityService() {
         return Bitmap.createScaledBitmap(source, dstWidth, dstHeight, true)
     }
 
-    private fun saveOcrCaptureToSdcard(jpeg: ByteArray, text: String) {
+    private fun buildOverlayJpeg(
+        base: Bitmap,
+        ocrPayload: TaskBridge.OcrPayloadData?,
+    ): ByteArray? {
+        val lines = ocrPayload?.lines.orEmpty()
+        if (lines.isEmpty()) return null
+        return try {
+            val overlay = base.copy(Bitmap.Config.ARGB_8888, true) ?: return null
+            val canvas = Canvas(overlay)
+            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                color = Color.argb(255, 0, 255, 80)
+                strokeWidth = (overlay.width / 320f).coerceAtLeast(2f)
+            }
+            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = Color.argb(255, 255, 208, 0)
+                textSize = (overlay.width / 38f).coerceAtLeast(20f)
+            }
+            val textBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.FILL
+                color = Color.argb(150, 0, 0, 0)
+            }
+            for (line in lines) {
+                val quad = line.quad
+                if (quad.size >= 4) {
+                    for (i in quad.indices) {
+                        val p1 = quad[i]
+                        val p2 = quad[(i + 1) % quad.size]
+                        canvas.drawLine(p1.x, p1.y, p2.x, p2.y, strokePaint)
+                    }
+                }
+                val label = "${line.text} (${String.format(java.util.Locale.US, "%.2f", line.prob)})"
+                val textX = line.left.coerceAtLeast(0f)
+                val textY = (line.top - 8f).coerceAtLeast(textPaint.textSize + 4f)
+                val textW = textPaint.measureText(label)
+                val pad = 6f
+                canvas.drawRect(
+                    textX - pad,
+                    textY - textPaint.textSize - pad,
+                    textX + textW + pad,
+                    textY + pad,
+                    textBgPaint,
+                )
+                canvas.drawText(label, textX, textY, textPaint)
+            }
+            val out = ByteArrayOutputStream()
+            if (!overlay.compress(Bitmap.CompressFormat.JPEG, CAPTURE_JPEG_QUALITY, out)) {
+                overlay.recycle()
+                return null
+            }
+            overlay.recycle()
+            out.toByteArray()
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun saveOcrCaptureToSdcard(jpeg: ByteArray, overlayJpeg: ByteArray?, text: String) {
         if (!SAVE_CAPTURE_TO_SDCARD) return
         try {
             val dir = File(SDCARD_OCR_DIR)
@@ -365,6 +427,10 @@ class MyAccessibilityService : AccessibilityService() {
             val ts = System.currentTimeMillis()
             val imgFile = File(dir, "ocr_${ts}.jpg")
             FileOutputStream(imgFile).use { it.write(jpeg) }
+            if (overlayJpeg != null) {
+                val overlayFile = File(dir, "ocr_${ts}_overlay.jpg")
+                FileOutputStream(overlayFile).use { it.write(overlayJpeg) }
+            }
             val txtFile = File(dir, "ocr_${ts}.txt")
             txtFile.writeText(text.ifBlank { "<EMPTY>" })
             Logger.i("OCR saved: ${imgFile.absolutePath}", tag = "LanBotOCR")
