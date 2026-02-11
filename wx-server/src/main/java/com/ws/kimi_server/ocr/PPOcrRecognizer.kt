@@ -103,11 +103,10 @@ class PPOcrRecognizer(private val context: Context) {
 
     companion object {
         private val REQUIRED_ASSETS = listOf(
-            "pdocrv2.0_det-op.param",
-            "pdocrv2.0_det-op.bin",
-            "pdocrv2.0_rec-op.param",
-            "pdocrv2.0_rec-op.bin",
-            "paddleocr_keys.txt",
+            "PP_OCRv5_mobile_det.ncnn.param",
+            "PP_OCRv5_mobile_det.ncnn.bin",
+            "PP_OCRv5_mobile_rec.ncnn.param",
+            "PP_OCRv5_mobile_rec.ncnn.bin",
         )
     }
 

@@ -21,8 +21,7 @@ add_library(
     paddleocrncnn
     SHARED
     paddleocr_ncnn.cpp
-    common.cpp
-    clipper.cpp
+    ppocrv5.cpp
     kmp_compat.cpp
 )
 

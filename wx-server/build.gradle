@@ -11,13 +11,12 @@ ext {
     opencvZipName = "${opencvPackageName}.zip"
     opencvZipUrl = "https://github.com/nihui/opencv-mobile/releases/download/v35/${opencvZipName}"
 
-    ocrModelBaseUrl = "https://raw.githubusercontent.com/FeiGeChuanShu/ncnn_paddleocr/main/app/src/main/assets"
+    ocrModelBaseUrl = "https://raw.githubusercontent.com/nihui/ncnn-android-ppocrv5/master/app/src/main/assets"
     ocrModelFiles = [
-        "pdocrv2.0_det-op.param",
-        "pdocrv2.0_det-op.bin",
-        "pdocrv2.0_rec-op.param",
-        "pdocrv2.0_rec-op.bin",
-        "paddleocr_keys.txt",
+        "PP_OCRv5_mobile_det.ncnn.param",
+        "PP_OCRv5_mobile_det.ncnn.bin",
+        "PP_OCRv5_mobile_rec.ncnn.param",
+        "PP_OCRv5_mobile_rec.ncnn.bin",
     ]
 }
 
