@@ -29,7 +29,7 @@ class MyAccessibilityService : AccessibilityService() {
     private var lastPkg: String = ""
     private var lastCls: String = ""
     private val ppOcrRecognizer by lazy { PPOcrRecognizer(applicationContext) }
-    private var lastLoggedOcrText: String = ""
+    private var lastLoggedOcrText: String? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -306,9 +306,10 @@ class MyAccessibilityService : AccessibilityService() {
 
     private fun maybeLogOcrTextChange(text: String) {
         val normalized = text.trim()
-        if (normalized.isEmpty() || normalized == lastLoggedOcrText) return
+        if (normalized == lastLoggedOcrText) return
         lastLoggedOcrText = normalized
-        Logger.i("NCNN OCR changed: ${normalized.take(200)}", tag = "LanBotOCR")
+        val preview = if (normalized.isEmpty()) "<EMPTY>" else normalized.take(200)
+        Logger.i("NCNN OCR changed: $preview", tag = "LanBotOCR")
     }
 
     private fun extractNotificationTitle(event: AccessibilityEvent): String? {
