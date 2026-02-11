@@ -64,6 +64,7 @@ class MyAccessibilityService : AccessibilityService() {
     private val tabScanOutboundQueue = ArrayDeque<String>()
     private var tabScanSendingText: String? = null
     private var tabScanAwaitSendButton = false
+    private val tabScanRecentSentCache = ArrayDeque<SentEcho>()
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -229,6 +230,7 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanBaselineInitialized = false
         tabScanLastCycleFile = null
         tabScanLastDeltaFile = null
+        tabScanRecentSentCache.clear()
         Logger.i("TabScan started: loop mode, stepping TAB via IME every 250ms", tag = "LanBotTabScan")
         if (!LanBotImeService.isServiceActive()) {
             Logger.w("TabScan IME inactive: enable/select LanBot Keyboard first", tag = "LanBotTabScan")
@@ -273,6 +275,7 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanSeenFirst = false
         tabScanSendingText = null
         tabScanAwaitSendButton = false
+        tabScanRecentSentCache.clear()
     }
 
     private fun scheduleTabTick() {
@@ -374,6 +377,9 @@ class MyAccessibilityService : AccessibilityService() {
             tag = "LanBotTabScan",
         )
         if (enterOk) {
+            if (!sendingText.isNullOrBlank()) {
+                cacheRecentSentEcho(sendingText)
+            }
             tabScanSendingText = null
             tabScanAwaitSendButton = false
             Logger.i(
@@ -461,27 +467,41 @@ class MyAccessibilityService : AccessibilityService() {
 
         if (changed) {
             tabScanChangedCycleCount += 1
+            val filtered = filterOutboundEchoFromAdded(addedDescList)
+            val pushDescList = filtered.forward
+            val suppressedDescList = filtered.suppressed
             val delta = org.json.JSONObject()
                 .put("cycle", tabScanCycleIndex)
                 .put("segment_found", segment != null)
                 .put("segment_window_id", segment?.windowId ?: -1)
                 .put("desc_count", currentDescList.size)
                 .put("desc_list", org.json.JSONArray().apply { currentDescList.forEach { put(it) } })
-                .put("added_count", addedDescList.size)
-                .put("added_contents", org.json.JSONArray().apply { addedDescList.forEach { put(it) } })
+                .put("added_count", pushDescList.size)
+                .put("added_contents", org.json.JSONArray().apply { pushDescList.forEach { put(it) } })
+                .put("suppressed_count", suppressedDescList.size)
+                .put("suppressed_contents", org.json.JSONArray().apply { suppressedDescList.forEach { put(it) } })
             val deltaString = delta.toString()
             logLong("LanBotTabScan", "TabScan delta: ", deltaString)
-            if (addedDescList.isEmpty()) {
-                Logger.i("TabScan added contents: <NONE>", tag = "LanBotTabScan")
-            } else {
-                addedDescList.forEachIndexed { index, content ->
+            if (suppressedDescList.isNotEmpty()) {
+                suppressedDescList.forEachIndexed { index, content ->
                     logLong(
                         tag = "LanBotTabScan",
-                        prefix = "TabScan added[${index + 1}/${addedDescList.size}]: ",
+                        prefix = "TabScan suppressed[${index + 1}/${suppressedDescList.size}]: ",
                         text = content,
                     )
                 }
-                pushAddedMessagesToClientPush(addedDescList, segment)
+            }
+            if (pushDescList.isEmpty()) {
+                Logger.i("TabScan added contents: <NONE>", tag = "LanBotTabScan")
+            } else {
+                pushDescList.forEachIndexed { index, content ->
+                    logLong(
+                        tag = "LanBotTabScan",
+                        prefix = "TabScan added[${index + 1}/${pushDescList.size}]: ",
+                        text = content,
+                    )
+                }
+                pushAddedMessagesToClientPush(pushDescList, segment)
             }
             tabScanLastDeltaFile = saveTabScanDeltaToSdcard(deltaString)
             Logger.i("TabScan delta file: ${tabScanLastDeltaFile ?: "<failed>"}", tag = "LanBotTabScan")
@@ -504,6 +524,85 @@ class MyAccessibilityService : AccessibilityService() {
         val endIndex: Int,
         val descList: List<String>,
     )
+
+    private data class SentEcho(
+        val normalized: String,
+        val expiresAtMs: Long,
+    )
+
+    private data class AddedFilterResult(
+        val forward: List<String>,
+        val suppressed: List<String>,
+    )
+
+    private fun cacheRecentSentEcho(text: String) {
+        val normalized = normalizeCompareText(text)
+        if (normalized.isEmpty()) return
+        pruneExpiredSentEcho()
+        while (tabScanRecentSentCache.size >= TAB_SCAN_SENT_CACHE_MAX) {
+            tabScanRecentSentCache.removeFirstOrNull()
+        }
+        tabScanRecentSentCache.addLast(
+            SentEcho(
+                normalized = normalized,
+                expiresAtMs = System.currentTimeMillis() + TAB_SCAN_SENT_CACHE_TTL_MS,
+            )
+        )
+        Logger.i(
+            "TabScan sent cache add size=${tabScanRecentSentCache.size} len=${text.length}",
+            tag = "LanBotTabScan",
+        )
+    }
+
+    private fun filterOutboundEchoFromAdded(added: List<String>): AddedFilterResult {
+        if (added.isEmpty()) return AddedFilterResult(emptyList(), emptyList())
+        pruneExpiredSentEcho()
+        val forward = ArrayList<String>(added.size)
+        val suppressed = ArrayList<String>()
+        added.forEach { text ->
+            if (consumeRecentSentEcho(text)) {
+                suppressed.add(text)
+            } else {
+                forward.add(text)
+            }
+        }
+        return AddedFilterResult(forward = forward, suppressed = suppressed)
+    }
+
+    private fun consumeRecentSentEcho(text: String): Boolean {
+        val normalized = normalizeCompareText(text)
+        if (normalized.isEmpty()) return false
+        val now = System.currentTimeMillis()
+        val iterator = tabScanRecentSentCache.iterator()
+        while (iterator.hasNext()) {
+            val item = iterator.next()
+            if (item.expiresAtMs <= now) {
+                iterator.remove()
+                continue
+            }
+            if (item.normalized == normalized) {
+                iterator.remove()
+                return true
+            }
+        }
+        return false
+    }
+
+    private fun pruneExpiredSentEcho() {
+        if (tabScanRecentSentCache.isEmpty()) return
+        val now = System.currentTimeMillis()
+        val iterator = tabScanRecentSentCache.iterator()
+        while (iterator.hasNext()) {
+            val item = iterator.next()
+            if (item.expiresAtMs <= now) {
+                iterator.remove()
+            }
+        }
+    }
+
+    private fun normalizeCompareText(text: String): String {
+        return text.trim()
+    }
 
     private fun extractTabScanDescSegment(events: List<org.json.JSONObject>): TabScanDescSegment? {
         var startIndex = -1
@@ -1056,6 +1155,8 @@ class MyAccessibilityService : AccessibilityService() {
         private const val SDCARD_OCR_DIR = "/sdcard/ocr"
         private const val LOGCAT_CHUNK_SIZE = 2800
         private const val TAB_SCAN_INTERVAL_MS = 250L
+        private const val TAB_SCAN_SENT_CACHE_MAX = 200
+        private const val TAB_SCAN_SENT_CACHE_TTL_MS = 120_000L
         private const val TAB_SCAN_TARGET_PKG = "com.tencent.mm"
         private const val TAB_SCAN_TARGET_CLS = "android.widget.EditText"
         private const val TAB_SCAN_SEND_BUTTON_CLS = "android.widget.Button"
