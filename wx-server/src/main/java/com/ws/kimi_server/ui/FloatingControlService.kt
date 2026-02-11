@@ -99,8 +99,11 @@ class FloatingControlService : Service() {
 
         startBtn.setOnClickListener {
             CoreForegroundService.start(this)
+            sendBroadcast(
+                Intent(MyAccessibilityService.ACTION_START_TAB_SCAN).apply { setPackage(packageName) }
+            )
             updateStateText()
-            Toast.makeText(this, "Service started", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Service started + tab scan", Toast.LENGTH_SHORT).show()
         }
         stopBtn.setOnClickListener {
             CoreForegroundService.stop(this)
