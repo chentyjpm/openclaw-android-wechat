@@ -4,8 +4,11 @@ import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.Uri
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import android.widget.Button
 import android.widget.TextView
@@ -33,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var openServerSettings: Button
     private lateinit var openUsageAccess: Button
     private lateinit var grantScreenCaptureBtn: Button
+    private lateinit var enableFloatControlBtn: Button
     private lateinit var recentPkgText: TextView
     private lateinit var debugSwitch: SwitchCompat
     private lateinit var debugXmlSwitch: SwitchCompat
@@ -60,6 +64,7 @@ class MainActivity : AppCompatActivity() {
         openServerSettings = findViewById(R.id.btn_open_server_settings)
         openUsageAccess = findViewById(R.id.btn_open_usage_access)
         grantScreenCaptureBtn = findViewById(R.id.btn_grant_screen_capture)
+        enableFloatControlBtn = findViewById(R.id.btn_enable_float_control)
         recentPkgText = findViewById(R.id.tv_recent_pkg)
         updateServiceStateUi(ServiceStateStore.isRunning(this))
 
@@ -67,6 +72,7 @@ class MainActivity : AppCompatActivity() {
         openServerSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         openUsageAccess.setOnClickListener { com.ws.wx_server.util.openUsageAccessSettings(this) }
         grantScreenCaptureBtn.setOnClickListener { requestScreenCapturePermission() }
+        enableFloatControlBtn.setOnClickListener { requestOverlayPermissionAndStartFloatControl() }
 
         serviceStartBtn.setOnClickListener {
             val cfg = com.ws.wx_server.link.LinkConfigStore.load(this)
@@ -140,22 +146,32 @@ class MainActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != REQUEST_SCREEN_CAPTURE) return
-        if (resultCode == Activity.RESULT_OK && data != null) {
-            ScreenCapturePermissionStore.save(this, resultCode, data)
-            Toast.makeText(this, "Screen capture permission granted", Toast.LENGTH_SHORT).show()
-            Logger.i("MediaProjection permission granted", tag = "LanBotOCR")
-            if (pendingStartServiceAfterGrant) {
+        if (requestCode == REQUEST_SCREEN_CAPTURE) {
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                ScreenCapturePermissionStore.save(this, resultCode, data)
+                Toast.makeText(this, "Screen capture permission granted", Toast.LENGTH_SHORT).show()
+                Logger.i("MediaProjection permission granted", tag = "LanBotOCR")
+                if (pendingStartServiceAfterGrant) {
+                    pendingStartServiceAfterGrant = false
+                    updateServiceStateUi(true)
+                    serverStatusText.text = "Server: connecting"
+                    serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_waiting)
+                    CoreForegroundService.start(this)
+                }
+            } else {
                 pendingStartServiceAfterGrant = false
-                updateServiceStateUi(true)
-                serverStatusText.text = "Server: connecting"
-                serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_waiting)
-                CoreForegroundService.start(this)
+                Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show()
+                Logger.w("MediaProjection permission denied", tag = "LanBotOCR")
             }
-        } else {
-            pendingStartServiceAfterGrant = false
-            Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show()
-            Logger.w("MediaProjection permission denied", tag = "LanBotOCR")
+            return
+        }
+        if (requestCode == REQUEST_OVERLAY_PERMISSION) {
+            if (canDrawOverlays()) {
+                startFloatingControl()
+                Toast.makeText(this, "Floating control enabled", Toast.LENGTH_SHORT).show()
+            } else {
+                Toast.makeText(this, "Overlay permission denied", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -208,6 +224,38 @@ class MainActivity : AppCompatActivity() {
         requestScreenCapturePermission()
     }
 
+    private fun requestOverlayPermissionAndStartFloatControl() {
+        if (canDrawOverlays()) {
+            startFloatingControl()
+            Toast.makeText(this, "Floating control enabled", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            try {
+                val uri = Uri.parse("package:$packageName")
+                val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, uri)
+                startActivityForResult(intent, REQUEST_OVERLAY_PERMISSION)
+            } catch (_: Throwable) {
+                Toast.makeText(this, "Failed to open overlay settings", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            startFloatingControl()
+        }
+    }
+
+    private fun startFloatingControl() {
+        try {
+            startService(Intent(this, FloatingControlService::class.java))
+        } catch (_: Throwable) {
+            Toast.makeText(this, "Failed to start floating control", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun canDrawOverlays(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        return Settings.canDrawOverlays(this)
+    }
+
     private val linkReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: android.content.Context?, intent: Intent?) {
             val state = intent?.getStringExtra(CoreForegroundService.EXTRA_STATE) ?: return
@@ -246,5 +294,6 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_SCREEN_CAPTURE = 7311
+        private const val REQUEST_OVERLAY_PERMISSION = 7312
     }
 }
