@@ -535,13 +535,7 @@ class MyAccessibilityService : AccessibilityService() {
         text: String,
     ) {
         val body = org.json.JSONObject()
-            .put("query_id", "tabscan_cycle_$cycle")
-            .put("groupname", "tabscan_window_$windowId")
-            .put("username", "android_tabscan")
             .put("text", text)
-            .put("state", "ok")
-            .put("code", 0)
-            .put("references", org.json.JSONArray())
             .toString()
         val req = Request.Builder()
             .url(pushUrl)
