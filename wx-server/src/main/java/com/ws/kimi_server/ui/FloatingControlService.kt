@@ -16,8 +16,10 @@ import android.widget.TextView
 import android.widget.Toast
 import com.ws.wx_server.R
 import com.ws.wx_server.acc.MyAccessibilityService
+import com.ws.wx_server.apps.wechat.WeChatSpec
 import com.ws.wx_server.core.CoreForegroundService
 import com.ws.wx_server.core.ServiceStateStore
+import com.ws.wx_server.exec.AccessibilityAgent
 import com.ws.wx_server.util.Logger
 
 class FloatingControlService : Service() {
@@ -25,6 +27,7 @@ class FloatingControlService : Service() {
     private var rootView: View? = null
     private var lp: WindowManager.LayoutParams? = null
     private var stateText: TextView? = null
+    private val accessibilityAgent = AccessibilityAgent()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -99,11 +102,15 @@ class FloatingControlService : Service() {
 
         startBtn.setOnClickListener {
             CoreForegroundService.start(this)
-            sendBroadcast(
-                Intent(MyAccessibilityService.ACTION_START_TAB_SCAN).apply { setPackage(packageName) }
-            )
             updateStateText()
-            Toast.makeText(this, "Service started + tab scan", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Switching to WeChat...", Toast.LENGTH_SHORT).show()
+            Thread {
+                val switched = accessibilityAgent.nav_to_app(this, WeChatSpec.PKG)
+                Logger.i("Floating start: switch to WeChat -> $switched", tag = "LanBotTabScan")
+                sendBroadcast(
+                    Intent(MyAccessibilityService.ACTION_START_TAB_SCAN).apply { setPackage(packageName) }
+                )
+            }.start()
         }
         stopBtn.setOnClickListener {
             CoreForegroundService.stop(this)
