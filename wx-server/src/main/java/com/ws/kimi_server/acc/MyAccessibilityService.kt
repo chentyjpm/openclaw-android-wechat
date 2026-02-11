@@ -41,12 +41,18 @@ class MyAccessibilityService : AccessibilityService() {
 
     private var tabScanActive = false
     private var tabScanSeenFirst = false
-    private var tabScanStartedAt = 0L
+    private var tabScanSessionStartedAt = 0L
+    private var tabScanCycleStartedAt = 0L
     private var tabScanSteps = 0
     private val tabScanFocusedEvents = mutableListOf<org.json.JSONObject>()
     private val tabScanTargetEvents = mutableListOf<org.json.JSONObject>()
+    private var tabScanCycleIndex = 0
+    private var tabScanChangedCycleCount = 0
+    private var tabScanPreviousSignature: String? = null
+    private var tabScanPreviousContents: Set<String> = emptySet()
+    private var tabScanLastCycleFile: String? = null
+    private var tabScanLastDeltaFile: String? = null
     private var tabScanTicker: Runnable? = null
-    private var tabScanTimeout: Runnable? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -192,53 +198,56 @@ class MyAccessibilityService : AccessibilityService() {
             return
         }
         tabScanActive = true
-        tabScanSeenFirst = false
         tabScanSteps = 0
-        tabScanStartedAt = System.currentTimeMillis()
-        tabScanFocusedEvents.clear()
-        tabScanTargetEvents.clear()
-        Logger.i("TabScan started: stepping TAB via IME every 250ms and listening VIEW_FOCUSED EditText", tag = "LanBotTabScan")
+        tabScanSessionStartedAt = System.currentTimeMillis()
+        tabScanCycleIndex = 0
+        tabScanChangedCycleCount = 0
+        tabScanPreviousSignature = null
+        tabScanPreviousContents = emptySet()
+        tabScanLastCycleFile = null
+        tabScanLastDeltaFile = null
+        Logger.i("TabScan started: loop mode, stepping TAB via IME every 250ms", tag = "LanBotTabScan")
         if (!LanBotImeService.isServiceActive()) {
             Logger.w("TabScan IME inactive: enable/select LanBot Keyboard first", tag = "LanBotTabScan")
         }
+        startNextTabScanCycle()
         scheduleTabTick()
-        tabScanTimeout = Runnable { stopTabScan("timeout") }.also {
-            handler.postDelayed(it, TAB_SCAN_MAX_DURATION_MS)
-        }
     }
 
     private fun stopTabScan(reason: String) {
-        if (!tabScanActive && tabScanFocusedEvents.isEmpty() && tabScanTargetEvents.isEmpty()) return
+        if (!tabScanActive && tabScanFocusedEvents.isEmpty() && tabScanTargetEvents.isEmpty()) {
+            return
+        }
         tabScanActive = false
-        tabScanSeenFirst = false
         tabScanTicker?.let { handler.removeCallbacks(it) }
         tabScanTicker = null
-        tabScanTimeout?.let { handler.removeCallbacks(it) }
-        tabScanTimeout = null
-
-        val result = org.json.JSONObject()
+        if (tabScanFocusedEvents.isNotEmpty() || tabScanTargetEvents.isNotEmpty()) {
+            completeTabScanCycle(
+                reason = "session_stop:$reason",
+                continueLoop = false,
+            )
+        }
+        val summary = org.json.JSONObject()
             .put("reason", reason)
             .put("steps", tabScanSteps)
-            .put("elapsed_ms", (System.currentTimeMillis() - tabScanStartedAt).coerceAtLeast(0L))
-            .put("count", tabScanFocusedEvents.size)
-            .put("focused_count", tabScanFocusedEvents.size)
-            .put("target_count", tabScanTargetEvents.size)
-            .put("events", org.json.JSONArray().apply { tabScanFocusedEvents.forEach { put(it) } })
-            .put("target_events", org.json.JSONArray().apply { tabScanTargetEvents.forEach { put(it) } })
-        val resultString = result.toString()
-        logLong("LanBotTabScan", "TabScan result: ", resultString)
-        val path = saveTabScanResultToSdcard(resultString)
-        Logger.i("TabScan file: ${path ?: "<failed>"}", tag = "LanBotTabScan")
+            .put("elapsed_ms", (System.currentTimeMillis() - tabScanSessionStartedAt).coerceAtLeast(0L))
+            .put("cycles", tabScanCycleIndex)
+            .put("changed_cycles", tabScanChangedCycleCount)
+            .put("last_cycle_file", tabScanLastCycleFile.orEmpty())
+            .put("last_delta_file", tabScanLastDeltaFile.orEmpty())
+        val summaryString = summary.toString()
+        logLong("LanBotTabScan", "TabScan session done: ", summaryString)
         try {
             sendBroadcast(Intent(ACTION_TAB_SCAN_DONE).apply {
                 setPackage(packageName)
-                putExtra(EXTRA_TAB_SCAN_JSON, resultString)
-                putExtra(EXTRA_TAB_SCAN_FILE, path ?: "")
+                putExtra(EXTRA_TAB_SCAN_JSON, summaryString)
+                putExtra(EXTRA_TAB_SCAN_FILE, tabScanLastCycleFile.orEmpty())
             })
         } catch (_: Throwable) {
         }
         tabScanFocusedEvents.clear()
         tabScanTargetEvents.clear()
+        tabScanSeenFirst = false
     }
 
     private fun scheduleTabTick() {
@@ -248,10 +257,6 @@ class MyAccessibilityService : AccessibilityService() {
                 if (!tabScanActive) return
                 performTabStep()
                 tabScanSteps += 1
-                if (tabScanSteps >= TAB_SCAN_MAX_STEPS) {
-                    stopTabScan("max_steps")
-                    return
-                }
                 handler.postDelayed(this, TAB_SCAN_INTERVAL_MS)
             }
         }.also { handler.postDelayed(it, TAB_SCAN_INTERVAL_MS) }
@@ -302,15 +307,118 @@ class MyAccessibilityService : AccessibilityService() {
             tabScanSeenFirst = true
             Logger.i("TabScan first EditText found", tag = "LanBotTabScan")
         } else {
-            stopTabScan("second_edittext_found")
+            completeTabScanCycle(reason = "second_edittext_found", continueLoop = true)
         }
+    }
+
+    private fun startNextTabScanCycle() {
+        tabScanCycleIndex += 1
+        tabScanCycleStartedAt = System.currentTimeMillis()
+        tabScanSeenFirst = false
+        tabScanFocusedEvents.clear()
+        tabScanTargetEvents.clear()
+        Logger.i("TabScan cycle #$tabScanCycleIndex started", tag = "LanBotTabScan")
+    }
+
+    private fun completeTabScanCycle(reason: String, continueLoop: Boolean) {
+        if (tabScanFocusedEvents.isEmpty() && tabScanTargetEvents.isEmpty()) {
+            if (continueLoop && tabScanActive) {
+                startNextTabScanCycle()
+            }
+            return
+        }
+        val signature = buildTabScanSignature(tabScanFocusedEvents)
+        val currentContents = extractTabScanContents(tabScanFocusedEvents)
+        val addedContents = if (tabScanPreviousSignature == null) {
+            currentContents.toList()
+        } else {
+            currentContents.filter { it !in tabScanPreviousContents }
+        }
+        val changed = tabScanPreviousSignature == null || tabScanPreviousSignature != signature
+
+        val cycle = org.json.JSONObject()
+            .put("cycle", tabScanCycleIndex)
+            .put("reason", reason)
+            .put("steps_total", tabScanSteps)
+            .put("elapsed_ms", (System.currentTimeMillis() - tabScanCycleStartedAt).coerceAtLeast(0L))
+            .put("focused_count", tabScanFocusedEvents.size)
+            .put("target_count", tabScanTargetEvents.size)
+            .put("changed", changed)
+            .put("added_count", addedContents.size)
+            .put("added_contents", org.json.JSONArray().apply { addedContents.forEach { put(it) } })
+            .put("events", org.json.JSONArray().apply { tabScanFocusedEvents.forEach { put(it) } })
+            .put("target_events", org.json.JSONArray().apply { tabScanTargetEvents.forEach { put(it) } })
+        val cycleString = cycle.toString()
+        logLong("LanBotTabScan", "TabScan cycle result: ", cycleString)
+        val cyclePath = saveTabScanResultToSdcard(cycleString)
+        tabScanLastCycleFile = cyclePath
+        Logger.i("TabScan cycle file: ${cyclePath ?: "<failed>"}", tag = "LanBotTabScan")
+
+        if (changed) {
+            tabScanChangedCycleCount += 1
+            val delta = org.json.JSONObject()
+                .put("cycle", tabScanCycleIndex)
+                .put("added_count", addedContents.size)
+                .put("added_contents", org.json.JSONArray().apply { addedContents.forEach { put(it) } })
+            val deltaString = delta.toString()
+            logLong("LanBotTabScan", "TabScan delta: ", deltaString)
+            tabScanLastDeltaFile = saveTabScanDeltaToSdcard(deltaString)
+            Logger.i("TabScan delta file: ${tabScanLastDeltaFile ?: "<failed>"}", tag = "LanBotTabScan")
+        } else {
+            Logger.i("TabScan cycle #$tabScanCycleIndex unchanged", tag = "LanBotTabScan")
+        }
+
+        tabScanPreviousSignature = signature
+        tabScanPreviousContents = currentContents.toSet()
+
+        if (continueLoop && tabScanActive) {
+            startNextTabScanCycle()
+        }
+    }
+
+    private fun buildTabScanSignature(events: List<org.json.JSONObject>): String {
+        val arr = org.json.JSONArray()
+        events.forEach { evt ->
+            arr.put(
+                org.json.JSONObject()
+                    .put("pkg", evt.optString("pkg"))
+                    .put("cls", evt.optString("cls"))
+                    .put("text", evt.optString("text"))
+                    .put("content_desc", evt.optString("content_desc"))
+                    .put("is_target_edittext", evt.optBoolean("is_target_edittext")),
+            )
+        }
+        return arr.toString()
+    }
+
+    private fun extractTabScanContents(events: List<org.json.JSONObject>): List<String> {
+        val values = linkedSetOf<String>()
+        events.forEach { evt ->
+            val text = evt.optString("text").trim()
+            val desc = evt.optString("content_desc").trim()
+            if (text.isNotEmpty()) values.add(text)
+            if (desc.isNotEmpty()) values.add(desc)
+        }
+        return values.toList()
     }
 
     private fun saveTabScanResultToSdcard(content: String): String? {
         return try {
             val dir = File(SDCARD_OCR_DIR)
             if (!dir.exists() && !dir.mkdirs()) return null
-            val file = File(dir, "tab_scan_${System.currentTimeMillis()}.json")
+            val file = File(dir, "tab_scan_cycle_${tabScanCycleIndex}_${System.currentTimeMillis()}.json")
+            file.writeText(content)
+            file.absolutePath
+        } catch (_: Throwable) {
+            null
+        }
+    }
+
+    private fun saveTabScanDeltaToSdcard(content: String): String? {
+        return try {
+            val dir = File(SDCARD_OCR_DIR)
+            if (!dir.exists() && !dir.mkdirs()) return null
+            val file = File(dir, "tab_scan_delta_${tabScanCycleIndex}_${System.currentTimeMillis()}.json")
             file.writeText(content)
             file.absolutePath
         } catch (_: Throwable) {
@@ -698,8 +806,6 @@ class MyAccessibilityService : AccessibilityService() {
         private const val SDCARD_OCR_DIR = "/sdcard/ocr"
         private const val LOGCAT_CHUNK_SIZE = 2800
         private const val TAB_SCAN_INTERVAL_MS = 250L
-        private const val TAB_SCAN_MAX_STEPS = 120
-        private const val TAB_SCAN_MAX_DURATION_MS = 45_000L
         private const val TAB_SCAN_TARGET_PKG = "com.tencent.mm"
         private const val TAB_SCAN_TARGET_CLS = "android.widget.EditText"
         const val ACTION_SNAPSHOT = "com.ws.wx_server.ACC_SNAPSHOT"
