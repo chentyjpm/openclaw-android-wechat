@@ -98,6 +98,19 @@ function logWindowState(ws) {
   console.log(`[dev-server] window_state ts=${ts} pkg=${pkg} cls=${cls} wechat.screen=${screen} wechat.title=${title}`);
 }
 
+function logTabScanDelta(delta) {
+  if (!delta || typeof delta !== "object" || Array.isArray(delta)) return;
+  const id = String(delta.id ?? "").trim();
+  const cycle = parseNumber(delta.cycle, -1);
+  const order = parseNumber(delta.order, -1);
+  const total = parseNumber(delta.total, -1);
+  const windowId = parseNumber(delta.window_id, -1);
+  const text = String(delta.text ?? "");
+  console.log(
+    `[dev-server] tabscan_delta id=${id} cycle=${cycle} order=${order}/${total} window_id=${windowId} text=${JSON.stringify(text)}`,
+  );
+}
+
 function handleClientPush(body, res) {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     writeJson(res, 400, { ok: false, error: "invalid payload" });
@@ -121,6 +134,7 @@ function handleClientPush(body, res) {
         lastWindowState = env.window_state;
         logWindowState(env.window_state);
       }
+      if (env.tabscan_delta) logTabScanDelta(env.tabscan_delta);
     }
   });
 }

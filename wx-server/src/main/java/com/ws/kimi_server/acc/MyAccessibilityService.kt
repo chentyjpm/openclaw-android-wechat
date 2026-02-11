@@ -540,12 +540,14 @@ class MyAccessibilityService : AccessibilityService() {
                 "envelopes",
                 org.json.JSONArray().put(
                     org.json.JSONObject().put(
-                        "ack",
+                        "tabscan_delta",
                         org.json.JSONObject()
-                            .put("request_id", "tabscan_delta_${cycle}_${order}_$now")
-                            .put("ok", true)
-                            .put("stage", "TABSCAN_DELTA")
-                            .put("detail", text)
+                            .put("id", "tabscan_delta_${cycle}_${order}_$now")
+                            .put("cycle", cycle)
+                            .put("order", order)
+                            .put("total", total)
+                            .put("window_id", windowId)
+                            .put("text", text)
                             .put("ts_ms", now),
                     ),
                 ),
