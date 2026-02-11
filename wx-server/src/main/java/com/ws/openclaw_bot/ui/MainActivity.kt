@@ -22,12 +22,11 @@ import com.ws.wx_server.core.CoreForegroundService
 import com.ws.wx_server.core.ServiceStateStore
 import com.ws.wx_server.util.Logger
 import com.ws.wx_server.util.isAccessibilityEnabled
-import com.ws.wx_server.util.openAccessibilitySettings
 import com.ws.wx_server.link.CAPTURE_STRATEGY_SCREEN_FIRST
 
-class MainActivity : AppCompatActivity() {
+open class MainActivity : AppCompatActivity() {
+    private lateinit var openTerminalBtn: Button
     private lateinit var statusText: TextView
-    private lateinit var openSettingsBtn: Button
     private lateinit var serviceStateText: TextView
     private lateinit var serviceStartBtn: Button
     private lateinit var serviceStopBtn: Button
@@ -55,11 +54,11 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.openclaw_activity_main)
 
+        openTerminalBtn = findViewById(R.id.btn_open_terminal)
         statusText = findViewById(R.id.tv_status)
         statusIcon = findViewById(R.id.iv_status)
         serverStatusIcon = findViewById(R.id.iv_server_status)
         serverStatusText = findViewById(R.id.tv_server_status)
-        openSettingsBtn = findViewById(R.id.btn_open_settings)
         serviceStateText = findViewById(R.id.tv_service_state)
         serviceStartBtn = findViewById(R.id.btn_service_start)
         serviceStopBtn = findViewById(R.id.btn_service_stop)
@@ -74,7 +73,7 @@ class MainActivity : AppCompatActivity() {
         recentPkgText = findViewById(R.id.tv_recent_pkg)
         updateServiceStateUi(ServiceStateStore.isRunning(this))
 
-        openSettingsBtn.setOnClickListener { openAccessibilitySettings(this) }
+        openTerminalBtn.setOnClickListener { openTermuxTerminal() }
         openServerSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         openUsageAccess.setOnClickListener { com.ws.wx_server.util.openUsageAccessSettings(this) }
         openImeSettingsBtn.setOnClickListener { openInputMethodSettings() }
@@ -266,6 +265,16 @@ class MainActivity : AppCompatActivity() {
             startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
         } catch (_: Throwable) {
             Toast.makeText(this, "Failed to open keyboard settings", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun openTermuxTerminal() {
+        try {
+            val intent = Intent()
+            intent.setClassName(this, "com.termux.app.TermuxActivity")
+            startActivity(intent)
+        } catch (_: Throwable) {
+            Toast.makeText(this, "Failed to open terminal", Toast.LENGTH_SHORT).show()
         }
     }
 
