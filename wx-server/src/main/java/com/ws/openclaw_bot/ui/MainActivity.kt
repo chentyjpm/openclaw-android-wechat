@@ -22,6 +22,7 @@ import com.ws.wx_server.core.CoreForegroundService
 import com.ws.wx_server.core.ServiceStateStore
 import com.ws.wx_server.util.Logger
 import com.ws.wx_server.util.isAccessibilityEnabled
+import com.ws.wx_server.util.openAccessibilitySettings
 import com.ws.wx_server.link.CAPTURE_STRATEGY_SCREEN_FIRST
 
 open class MainActivity : AppCompatActivity() {
@@ -35,10 +36,9 @@ open class MainActivity : AppCompatActivity() {
     private lateinit var serverStatusText: TextView
     private lateinit var openServerSettings: Button
     private lateinit var openUsageAccess: Button
+    private lateinit var openAccessibilityBtn: Button
     private lateinit var openImeSettingsBtn: Button
     private lateinit var pickImeBtn: Button
-    private lateinit var grantScreenCaptureBtn: Button
-    private lateinit var enableFloatControlBtn: Button
     private lateinit var recentPkgText: TextView
     private lateinit var debugSwitch: SwitchCompat
     private lateinit var debugXmlSwitch: SwitchCompat
@@ -66,26 +66,18 @@ open class MainActivity : AppCompatActivity() {
         debugXmlSwitch = findViewById(R.id.switch_debug_xml)
         openServerSettings = findViewById(R.id.btn_open_server_settings)
         openUsageAccess = findViewById(R.id.btn_open_usage_access)
+        openAccessibilityBtn = findViewById(R.id.btn_open_accessibility)
         openImeSettingsBtn = findViewById(R.id.btn_open_ime_settings)
         pickImeBtn = findViewById(R.id.btn_pick_ime)
-        grantScreenCaptureBtn = findViewById(R.id.btn_grant_screen_capture)
-        enableFloatControlBtn = findViewById(R.id.btn_enable_float_control)
         recentPkgText = findViewById(R.id.tv_recent_pkg)
         updateServiceStateUi(ServiceStateStore.isRunning(this))
 
         openTerminalBtn.setOnClickListener { openTermuxTerminal() }
         openServerSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         openUsageAccess.setOnClickListener { com.ws.wx_server.util.openUsageAccessSettings(this) }
+        openAccessibilityBtn.setOnClickListener { openAccessibilitySettings(this) }
         openImeSettingsBtn.setOnClickListener { openInputMethodSettings() }
         pickImeBtn.setOnClickListener { showInputMethodPicker() }
-        grantScreenCaptureBtn.setOnClickListener {
-            if (TEMP_DISABLE_CAPTURE_AND_OCR) {
-                Toast.makeText(this, "Capture/OCR temporarily disabled", Toast.LENGTH_SHORT).show()
-            } else {
-                requestScreenCapturePermission()
-            }
-        }
-        enableFloatControlBtn.setOnClickListener { requestOverlayPermissionAndStartFloatControl() }
         ensureFloatingControlAlwaysOn()
 
         serviceStartBtn.setOnClickListener {

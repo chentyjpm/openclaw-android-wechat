@@ -64,7 +64,7 @@
         android:id="@+id/btn_open_server_settings"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Open Server Settings" />
+        android:text="@string/openclaw_btn_server_settings" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -90,7 +90,13 @@
         android:id="@+id/btn_open_usage_access"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Open Usage Access" />
+        android:text="@string/openclaw_btn_usage_access" />
+
+    <Button
+        android:id="@+id/btn_open_accessibility"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/openclaw_btn_open_accessibility" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -134,25 +140,13 @@
         android:id="@+id/btn_open_ime_settings"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Open Keyboard Settings" />
+        android:text="@string/openclaw_btn_keyboard_settings" />
 
     <Button
         android:id="@+id/btn_pick_ime"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Choose LanBot Keyboard" />
-
-    <Button
-        android:id="@+id/btn_grant_screen_capture"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Grant Screen Capture" />
-
-    <Button
-        android:id="@+id/btn_enable_float_control"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Enable Floating Control" />
+        android:text="@string/openclaw_btn_pick_ime" />
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -179,7 +173,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Start Service" />
+                android:text="@string/openclaw_btn_service_start" />
 
             <Button
                 android:id="@+id/btn_service_stop"
@@ -187,7 +181,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginStart="12dp"
                 android:layout_weight="1"
-                android:text="Stop Service" />
+                android:text="@string/openclaw_btn_service_stop" />
         </LinearLayout>
     </LinearLayout>
 
