@@ -24,6 +24,7 @@ ext {
 def generatedRoot = file("$buildDir/generated")
 def nativeRoot = file("$generatedRoot/ocrNative")
 def assetsRoot = file("$generatedRoot/ocrAssets")
+def jniLibsRoot = file("$generatedRoot/ocrJniLibs")
 
 def downloadFileIfMissing = { String url, File dest ->
     if (dest.exists() && dest.length() > 0L) return
@@ -81,6 +82,61 @@ tasks.register("prepareNcnnOcrResources") {
     }
 }
 
+tasks.register("prepareNcnnRuntimeLibs") {
+    doLast {
+        if (jniLibsRoot.exists()) jniLibsRoot.deleteDir()
+        jniLibsRoot.mkdirs()
+
+        def ndkDir = new File(android.sdkDirectory, "ndk/${android.ndkVersion}")
+        if (!ndkDir.exists()) {
+            throw new GradleException("NDK directory not found: ${ndkDir.absolutePath}")
+        }
+
+        def clangBase = new File(ndkDir, "toolchains/llvm/prebuilt/windows-x86_64/lib/clang")
+        def clangVersions = clangBase.exists() ? (clangBase.listFiles()?.findAll { it.isDirectory() } ?: []) : []
+        if (clangVersions.isEmpty()) {
+            throw new GradleException("Cannot locate clang runtime under: ${clangBase.absolutePath}")
+        }
+        def clangVersionDir = clangVersions.sort { a, b -> a.name <=> b.name }.last()
+
+        def abiArchMap = [
+            "arm64-v8a"  : "aarch64",
+            "armeabi-v7a": "arm",
+            "x86"        : "i386",
+            "x86_64"     : "x86_64",
+        ]
+        def abiTripleMap = [
+            "arm64-v8a"  : "aarch64-linux-android",
+            "armeabi-v7a": "arm-linux-androideabi",
+            "x86"        : "i686-linux-android",
+            "x86_64"     : "x86_64-linux-android",
+        ]
+
+        abiArchMap.each { abi, arch ->
+            def outDir = new File(jniLibsRoot, abi)
+            outDir.mkdirs()
+
+            def ompSrc = new File(clangVersionDir, "lib/linux/${arch}/libomp.so")
+            if (!ompSrc.exists()) {
+                throw new GradleException("libomp.so missing for ${abi}: ${ompSrc.absolutePath}")
+            }
+            copy {
+                from ompSrc
+                into outDir
+            }
+
+            def triple = abiTripleMap[abi]
+            def cxxSrc = new File(ndkDir, "toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/${triple}/libc++_shared.so")
+            if (cxxSrc.exists()) {
+                copy {
+                    from cxxSrc
+                    into outDir
+                }
+            }
+        }
+    }
+}
+
 android {
     namespace "com.ws.wx_server"
 
@@ -92,6 +148,7 @@ android {
             // Avoid resource name collisions with the host app by using a dedicated res dir.
             res.srcDirs = ["src/main/res-kimi"]
             assets.srcDirs += ["$buildDir/generated/ocrAssets"]
+            jniLibs.srcDirs += ["$buildDir/generated/ocrJniLibs"]
         }
     }
 
@@ -135,3 +192,4 @@ dependencies {
 }
 
 preBuild.dependsOn(tasks.named("prepareNcnnOcrResources"))
+preBuild.dependsOn(tasks.named("prepareNcnnRuntimeLibs"))
