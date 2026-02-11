@@ -52,7 +52,7 @@ class MyAccessibilityService : AccessibilityService() {
         if (cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST) {
             Thread {
                 val ok = ppOcrRecognizer.warmUp()
-                Logger.i("PPOCR warmup result=$ok", tag = "LanBotOCR")
+                Logger.i("NCNN OCR warmup result=$ok", tag = "LanBotOCR")
             }.start()
         }
         try {
@@ -308,7 +308,7 @@ class MyAccessibilityService : AccessibilityService() {
         val normalized = text.trim()
         if (normalized.isEmpty() || normalized == lastLoggedOcrText) return
         lastLoggedOcrText = normalized
-        Logger.i("PPOCR changed: ${normalized.take(200)}", tag = "LanBotOCR")
+        Logger.i("NCNN OCR changed: ${normalized.take(200)}", tag = "LanBotOCR")
     }
 
     private fun extractNotificationTitle(event: AccessibilityEvent): String? {

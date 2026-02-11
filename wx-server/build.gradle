@@ -1,15 +1,97 @@
 apply plugin: "com.android.library"
 apply plugin: "kotlin-android"
 
+ext {
+    ncnnVersion = "20260113"
+    ncnnPackageName = "ncnn-${ncnnVersion}-android-vulkan"
+    ncnnZipName = "${ncnnPackageName}.zip"
+    ncnnZipUrl = "https://github.com/Tencent/ncnn/releases/download/${ncnnVersion}/${ncnnZipName}"
+
+    opencvPackageName = "opencv-mobile-2.4.13.7-android"
+    opencvZipName = "${opencvPackageName}.zip"
+    opencvZipUrl = "https://github.com/nihui/opencv-mobile/releases/download/v35/${opencvZipName}"
+
+    ocrModelBaseUrl = "https://raw.githubusercontent.com/FeiGeChuanShu/ncnn_paddleocr/main/app/src/main/assets"
+    ocrModelFiles = [
+        "pdocrv2.0_det-op.param",
+        "pdocrv2.0_det-op.bin",
+        "pdocrv2.0_rec-op.param",
+        "pdocrv2.0_rec-op.bin",
+        "paddleocr_keys.txt",
+    ]
+}
+
+def generatedRoot = file("$buildDir/generated")
+def nativeRoot = file("$generatedRoot/ocrNative")
+def assetsRoot = file("$generatedRoot/ocrAssets")
+
+def downloadFileIfMissing = { String url, File dest ->
+    if (dest.exists() && dest.length() > 0L) return
+    dest.parentFile.mkdirs()
+    def tmp = new File(dest.parentFile, "${dest.name}.part")
+    if (tmp.exists()) tmp.delete()
+
+    def conn = new URL(url).openConnection()
+    conn.connectTimeout = 20000
+    conn.readTimeout = 120000
+    conn.instanceFollowRedirects = true
+
+    conn.getInputStream().withCloseable { input ->
+        tmp.withOutputStream { output ->
+            output << input
+        }
+    }
+
+    if (dest.exists()) dest.delete()
+    if (!tmp.renameTo(dest)) {
+        throw new GradleException("Failed to move ${tmp.absolutePath} to ${dest.absolutePath}")
+    }
+}
+
+def unzipIfMissing = { File zipFile, File outDir, File marker ->
+    if (marker.exists()) return
+    if (outDir.exists()) outDir.deleteDir()
+    outDir.mkdirs()
+    copy {
+        from zipTree(zipFile)
+        into outDir
+    }
+    if (!marker.exists()) {
+        throw new GradleException("Unzip completed but marker missing: ${marker.absolutePath}")
+    }
+}
+
+tasks.register("prepareNcnnOcrResources") {
+    doLast {
+        def ncnnZip = new File(nativeRoot, "downloads/${ncnnZipName}")
+        def opencvZip = new File(nativeRoot, "downloads/${opencvZipName}")
+
+        downloadFileIfMissing(ncnnZipUrl, ncnnZip)
+        downloadFileIfMissing(opencvZipUrl, opencvZip)
+
+        def ncnnOut = new File(nativeRoot, "ncnn")
+        def opencvOut = new File(nativeRoot, "opencv")
+        unzipIfMissing(ncnnZip, ncnnOut, new File(ncnnOut, "${ncnnPackageName}/arm64-v8a/lib/libncnn.a"))
+        unzipIfMissing(opencvZip, opencvOut, new File(opencvOut, "${opencvPackageName}/sdk/native/jni/OpenCVConfig.cmake"))
+
+        assetsRoot.mkdirs()
+        ocrModelFiles.each { name ->
+            downloadFileIfMissing("${ocrModelBaseUrl}/${name}", new File(assetsRoot, name))
+        }
+    }
+}
+
 android {
     namespace "com.ws.wx_server"
 
     compileSdkVersion project.properties.compileSdkVersion.toInteger()
+    ndkVersion project.properties.ndkVersion
 
     sourceSets {
         main {
             // Avoid resource name collisions with the host app by using a dedicated res dir.
             res.srcDirs = ["src/main/res-kimi"]
+            assets.srcDirs += ["$buildDir/generated/ocrAssets"]
         }
     }
 
@@ -17,6 +99,22 @@ android {
         minSdkVersion project.properties.minSdkVersion.toInteger()
         targetSdkVersion project.properties.targetSdkVersion.toInteger()
         consumerProguardFiles "consumer-rules.pro"
+
+        externalNativeBuild {
+            cmake {
+                cppFlags "-std=c++17 -fexceptions -frtti"
+                def nativePath = nativeRoot.absolutePath.replace('\\', '/')
+                arguments "-DANDROID_STL=c++_shared",
+                    "-DOPENCV_ROOT=${nativePath}/opencv/${opencvPackageName}",
+                    "-DNCNN_ROOT=${nativePath}/ncnn/${ncnnPackageName}"
+            }
+        }
+    }
+
+    externalNativeBuild {
+        cmake {
+            path "src/main/jni/CMakeLists.txt"
+        }
     }
 
     compileOptions {
@@ -34,5 +132,6 @@ dependencies {
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "androidx.work:work-runtime-ktx:2.9.0"
     implementation "com.squareup.okhttp3:okhttp:4.9.0"
-    implementation "com.github.equationl.paddleocr4android:fastdeplyocr:v1.2.9"
 }
+
+preBuild.dependsOn(tasks.named("prepareNcnnOcrResources"))

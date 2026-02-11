@@ -1,15 +1,14 @@
 BUILDING ...
 
-搞不定微信数据获取 准备移植OCR
+搞不定微信数据获�?准备移植OCR
 
-Android PPOCR 集成说明（wx-server）
-
-1. 已集成依赖：`com.github.equationl.paddleocr4android:fastdeplyocr:v1.2.9`
+Android PPOCR 集成说明（wx-server�?
+1. 已集成依赖：`ncnn + opencv-mobile (auto download at build time)`
 2. 识别入口：`wx-server/src/main/java/com/ws/kimi_server/ocr/PPOcrRecognizer.kt`
 3. 截图链路已接入：`wx-server/src/main/java/com/ws/kimi_server/acc/MyAccessibilityService.kt`
-4. 首次识别会自动下载模型到：`/data/data/<你的包名>/files/ppocr/`
-5. 自动下载内容：
-   - `det.pdmodel` + `det.pdiparams`
-   - `rec.pdmodel` + `rec.pdiparams`
-   - `cls.pdmodel` + `cls.pdiparams`
-   - `ppocr_keys_v1.txt`
+4. ģ�ͺ��ֵ��ڹ����׶��Զ����ز������ APK assets����������ʱ���أ�
+5. 自动下载内容�?   - `pdocrv2.0_det-op.param + pdocrv2.0_det-op.bin`
+   - `pdocrv2.0_rec-op.param + pdocrv2.0_rec-op.bin`
+   - `paddleocr_keys.txt`
+   - `PaddleOCRNcnn.java + native paddleocrncnn`
+
