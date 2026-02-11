@@ -638,19 +638,6 @@ class MyAccessibilityService : AccessibilityService() {
         maybeLogOcrTextChange(recognizedText)
         maybeLogOcrJsonChange(capture?.ocrJson)
 
-        TaskBridge.sendWindowState(
-            pkg = pkg,
-            cls = cls,
-            nodes = 0,
-            clickable = 0,
-            focusable = 0,
-            editable = 0,
-            recyclers = 0,
-            wechat = null,
-            capture = capture?.payload,
-            ocr = capture?.ocrPayload,
-        )
-
         intent.setPackage(packageName)
         sendBroadcast(intent)
         lastSent = now
