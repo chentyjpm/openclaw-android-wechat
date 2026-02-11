@@ -4,21 +4,20 @@ import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.Intent
 import android.graphics.Bitmap
-import android.hardware.HardwareBuffer
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
-import android.view.Display
 import android.view.accessibility.AccessibilityEvent
+import com.ws.wx_server.capture.ScreenCaptureManager
 import com.ws.wx_server.debug.AccessibilityDebug
 import com.ws.wx_server.exec.TaskBridge
 import com.ws.wx_server.link.CAPTURE_STRATEGY_SCREEN_FIRST
 import com.ws.wx_server.ocr.PPOcrRecognizer
 import com.ws.wx_server.util.Logger
 import java.io.ByteArrayOutputStream
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
+import java.io.File
+import java.io.FileOutputStream
 
 class MyAccessibilityService : AccessibilityService() {
     private var lastSent = 0L
@@ -76,6 +75,7 @@ class MyAccessibilityService : AccessibilityService() {
         super.onDestroy()
         ServiceHolder.service = null
         AccessibilityStateStore.setConnected(applicationContext, false)
+        ScreenCaptureManager.release()
         pendingFollowUp?.let { handler.removeCallbacks(it) }
         pendingFollowUp = null
         Logger.i("Accessibility destroyed")
@@ -199,8 +199,7 @@ class MyAccessibilityService : AccessibilityService() {
         strategy: String,
     ): CapturedPayload? {
         val shouldCapture = strategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
-            pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+            pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG
         if (!shouldCapture) {
             if (pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG) {
                 Logger.i(
@@ -218,7 +217,7 @@ class MyAccessibilityService : AccessibilityService() {
         lastCaptureAt = now
         return CapturedPayload(
             payload = TaskBridge.CapturePayload(
-                mode = "accessibility_screen",
+                mode = captured.mode,
                 mime = "image/jpeg",
                 width = captured.width,
                 height = captured.height,
@@ -235,6 +234,7 @@ class MyAccessibilityService : AccessibilityService() {
     )
 
     private data class CapturedFrame(
+        val mode: String,
         val width: Int,
         val height: Int,
         val base64Jpeg: String,
@@ -242,76 +242,46 @@ class MyAccessibilityService : AccessibilityService() {
     )
 
     private fun captureScreenFrame(): CapturedFrame? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
-        val latch = CountDownLatch(1)
-        var out: CapturedFrame? = null
-        try {
-            takeScreenshot(
-                Display.DEFAULT_DISPLAY,
-                { runnable -> handler.post(runnable) },
-                object : AccessibilityService.TakeScreenshotCallback {
-                    override fun onSuccess(screenshot: AccessibilityService.ScreenshotResult) {
-                        out = screenshotToFrame(screenshot)
-                        latch.countDown()
-                    }
-
-                    override fun onFailure(errorCode: Int) {
-                        Logger.w("OCR screenshot failed: code=$errorCode", tag = "LanBotOCR")
-                        latch.countDown()
-                    }
-                },
-            )
-            val ok = latch.await(450, TimeUnit.MILLISECONDS)
-            if (!ok) Logger.w("OCR screenshot timeout", tag = "LanBotOCR")
-        } catch (_: Throwable) {
-            Logger.w("OCR screenshot exception", tag = "LanBotOCR")
-            return null
+        val projected = try {
+            ScreenCaptureManager.captureBitmap(applicationContext, timeoutMs = 600L)
+        } catch (t: Throwable) {
+            Logger.w("MediaProjection capture failed: ${t.message}", tag = "LanBotOCR")
+            null
         }
-        if (out == null) Logger.i("OCR screenshot frame is null", tag = "LanBotOCR")
-        return out
+        if (projected != null) {
+            return bitmapToFrame(projected, "media_projection")
+        }
+        Logger.i("OCR skip capture: media projection unavailable", tag = "LanBotOCR")
+        return null
     }
 
-    private fun screenshotToFrame(result: AccessibilityService.ScreenshotResult): CapturedFrame? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
-        val hardwareBuffer: HardwareBuffer = try {
-            result.hardwareBuffer
+    private fun bitmapToFrame(source: Bitmap, mode: String): CapturedFrame? {
+        val scaled = scaleBitmap(source, CAPTURE_MAX_WIDTH)
+        val outputWidth = scaled.width
+        val outputHeight = scaled.height
+        val ocrText = try {
+            ppOcrRecognizer.recognize(scaled) ?: ""
         } catch (_: Throwable) {
+            ""
+        }
+        val out = ByteArrayOutputStream()
+        if (!scaled.compress(Bitmap.CompressFormat.JPEG, CAPTURE_JPEG_QUALITY, out)) {
+            if (scaled !== source) scaled.recycle()
+            source.recycle()
             return null
         }
-        try {
-            val colorSpace = result.colorSpace
-            val wrapped = Bitmap.wrapHardwareBuffer(hardwareBuffer, colorSpace) ?: return null
-            val source = if (wrapped.config == Bitmap.Config.HARDWARE) {
-                wrapped.copy(Bitmap.Config.ARGB_8888, false) ?: return null
-            } else {
-                wrapped
-            }
-            val scaled = scaleBitmap(source, CAPTURE_MAX_WIDTH)
-            val outputWidth = scaled.width
-            val outputHeight = scaled.height
-            val ocrText = try {
-                ppOcrRecognizer.recognize(scaled) ?: ""
-            } catch (_: Throwable) {
-                ""
-            }
-            val out = ByteArrayOutputStream()
-            if (!scaled.compress(Bitmap.CompressFormat.JPEG, CAPTURE_JPEG_QUALITY, out)) return null
-            if (scaled !== source) scaled.recycle()
-            if (source !== wrapped) source.recycle()
-            val bytes = out.toByteArray()
-            val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
-            return CapturedFrame(
-                width = outputWidth,
-                height = outputHeight,
-                base64Jpeg = encoded,
-                ocrText = ocrText,
-            )
-        } finally {
-            try {
-                hardwareBuffer.close()
-            } catch (_: Throwable) {
-            }
-        }
+        if (scaled !== source) scaled.recycle()
+        source.recycle()
+        val bytes = out.toByteArray()
+        saveOcrCaptureToSdcard(bytes, ocrText)
+        val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return CapturedFrame(
+            mode = mode,
+            width = outputWidth,
+            height = outputHeight,
+            base64Jpeg = encoded,
+            ocrText = ocrText,
+        )
     }
 
     private fun scaleBitmap(source: Bitmap, maxWidth: Int): Bitmap {
@@ -320,6 +290,25 @@ class MyAccessibilityService : AccessibilityService() {
         val dstWidth = maxWidth
         val dstHeight = (source.height * ratio).toInt().coerceAtLeast(1)
         return Bitmap.createScaledBitmap(source, dstWidth, dstHeight, true)
+    }
+
+    private fun saveOcrCaptureToSdcard(jpeg: ByteArray, text: String) {
+        if (!SAVE_CAPTURE_TO_SDCARD) return
+        try {
+            val dir = File(SDCARD_OCR_DIR)
+            if (!dir.exists() && !dir.mkdirs()) {
+                Logger.w("OCR save failed: cannot mkdir $SDCARD_OCR_DIR", tag = "LanBotOCR")
+                return
+            }
+            val ts = System.currentTimeMillis()
+            val imgFile = File(dir, "ocr_${ts}.jpg")
+            FileOutputStream(imgFile).use { it.write(jpeg) }
+            val txtFile = File(dir, "ocr_${ts}.txt")
+            txtFile.writeText(text.ifBlank { "<EMPTY>" })
+            Logger.i("OCR saved: ${imgFile.absolutePath}", tag = "LanBotOCR")
+        } catch (t: Throwable) {
+            Logger.w("OCR save exception: ${t.message}", tag = "LanBotOCR")
+        }
     }
 
     private fun maybeLogOcrTextChange(text: String) {
@@ -358,6 +347,8 @@ class MyAccessibilityService : AccessibilityService() {
         private const val SCREEN_CAPTURE_THROTTLE_MS = 2200L
         private const val CAPTURE_JPEG_QUALITY = 55
         private const val CAPTURE_MAX_WIDTH = 960
+        private const val SAVE_CAPTURE_TO_SDCARD = true
+        private const val SDCARD_OCR_DIR = "/sdcard/ocr"
         const val ACTION_SNAPSHOT = "com.ws.wx_server.ACC_SNAPSHOT"
         const val ACTION_CONNECTED = "com.ws.wx_server.ACC_CONNECTED"
         const val ACTION_DISCONNECTED = "com.ws.wx_server.ACC_DISCONNECTED"
