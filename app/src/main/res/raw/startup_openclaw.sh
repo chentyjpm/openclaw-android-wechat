@@ -375,11 +375,28 @@ install_wechat_plugin() {
     fi
 
     # Install plugin via openclaw cli.
-    run_cmd openclaw plugins install openclaw-wechatui-channel
-    if [ $? -ne 0 ]; then
-        log "Failed to install plugin: openclaw-wechatui-channel"
-        echo -e "${RED}Error: openclaw plugin installation failed${NC}"
+    # Some environments may not expose npm_execpath and OpenClaw may fallback to /bin/npm.
+    NODE_CMD=$(command -v node 2>/dev/null || true)
+    NPM_CMD=$(command -v npm 2>/dev/null || true)
+    if [ -z "$NPM_CMD" ] && [ -x "$PREFIX/bin/npm" ]; then
+        NPM_CMD="$PREFIX/bin/npm"
+    fi
+    OPENCLAW_CMD=$(command -v openclaw 2>/dev/null || true)
+    if [ -z "$NODE_CMD" ] || [ -z "$NPM_CMD" ] || [ -z "$OPENCLAW_CMD" ]; then
+        log "Missing runtime command(s): node=$NODE_CMD npm=$NPM_CMD openclaw=$OPENCLAW_CMD"
+        echo -e "${RED}Error: missing node/npm/openclaw command before plugin install${NC}"
         exit 1
+    fi
+
+    run_cmd env PATH="$NPM_BIN:$PATH" npm_execpath="$NPM_CMD" npm_node_execpath="$NODE_CMD" openclaw plugins install openclaw-wechatui-channel
+    if [ $? -ne 0 ]; then
+        log "Plugin install failed on first attempt, retrying from extracted directory with explicit npm paths"
+        run_cmd sh -c "cd \"$PLUGIN_EXTRACT_DIR\" && PATH=\"$NPM_BIN:\$PATH\" npm_execpath=\"$NPM_CMD\" npm_node_execpath=\"$NODE_CMD\" openclaw plugins install openclaw-wechatui-channel"
+        if [ $? -ne 0 ]; then
+            log "Failed to install plugin: openclaw-wechatui-channel"
+            echo -e "${RED}Error: openclaw plugin installation failed${NC}"
+            exit 1
+        fi
     fi
 
     log "OpenClaw WeChat UI plugin installed successfully"
