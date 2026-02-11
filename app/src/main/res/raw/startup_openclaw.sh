@@ -339,6 +339,53 @@ apply_patches() {
     fi
 }
 
+install_wechat_plugin() {
+    # Install OpenClaw WeChat UI channel plugin
+    log "Installing OpenClaw WeChat UI plugin"
+    echo -e "${YELLOW}[4/7] Installing WeChat plugin...${NC}"
+
+    PLUGIN_TAR="$HOME/openclaw-wechatui-channel.tar"
+    PLUGIN_EXTRACT_DIR="$HOME/openclaw-wechatui-channel"
+
+    if [ ! -f "$PLUGIN_TAR" ]; then
+        log "Plugin tar not found: $PLUGIN_TAR"
+        echo -e "${RED}Error: plugin tar not found at $PLUGIN_TAR${NC}"
+        exit 1
+    fi
+
+    # Extract bundled plugin package under ~
+    run_cmd rm -rf "$PLUGIN_EXTRACT_DIR"
+    run_cmd tar -xf "$PLUGIN_TAR" -C "$HOME"
+    if [ $? -ne 0 ]; then
+        log "Failed to extract plugin tar: $PLUGIN_TAR"
+        echo -e "${RED}Error: failed to extract $PLUGIN_TAR${NC}"
+        exit 1
+    fi
+
+    if [ ! -d "$PLUGIN_EXTRACT_DIR" ]; then
+        # Fallback in case tar has a different top-level folder.
+        ROOT_DIR=$(tar -tf "$PLUGIN_TAR" 2>/dev/null | head -n1 | cut -d/ -f1)
+        if [ -n "$ROOT_DIR" ] && [ -d "$HOME/$ROOT_DIR" ]; then
+            PLUGIN_EXTRACT_DIR="$HOME/$ROOT_DIR"
+        else
+            log "Extracted plugin directory not found"
+            echo -e "${RED}Error: extracted plugin directory not found${NC}"
+            exit 1
+        fi
+    fi
+
+    # Install plugin via openclaw cli.
+    run_cmd openclaw plugins install openclaw-wechatui-channel
+    if [ $? -ne 0 ]; then
+        log "Failed to install plugin: openclaw-wechatui-channel"
+        echo -e "${RED}Error: openclaw plugin installation failed${NC}"
+        exit 1
+    fi
+
+    log "OpenClaw WeChat UI plugin installed successfully"
+    echo -e "${GREEN}✓ WeChat plugin installed: openclaw-wechatui-channel${NC}"
+}
+
 setup_autostart() {
     # Configure autostart and aliases
     if [ "$AUTO_START" == "y" ]; then
@@ -585,6 +632,7 @@ log "脚本开始执行，用户配置: 端口=$PORT, Token=$TOKEN, 自启动=$A
 check_deps
 configure_npm
 apply_patches
+install_wechat_plugin
 setup_autostart
 activate_wakelock
 start_service
