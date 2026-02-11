@@ -188,7 +188,7 @@ class CoreForegroundService : Service() {
             rawMode == "image" -> "image"
             rawMode == "latest_image" || rawMode == "send_latest_image" -> "latest_image"
             rawMode.isBlank() && cmd.imageUrl.isNotBlank() -> "image"
-            else -> if (rawMode.isBlank()) "text" else rawMode
+            else -> if (rawMode.isBlank() || rawMode == "tabscan") "text" else rawMode
         }
         when (mode) {
             "image" -> handleImageCommand(requestId, cmd, targetTitle)
@@ -217,6 +217,20 @@ class CoreForegroundService : Service() {
             }
             else -> {
                 val text = cmd.text
+                val tabScanMode =
+                    rawMode == "tabscan" || (targetTitle.isNullOrBlank() && chatId.isNullOrBlank())
+                if (tabScanMode) {
+                    val ok = if (text.isNullOrBlank()) false else enqueueTabScanOutbound(text)
+                    val error = if (ok) null else if (text.isNullOrBlank()) "empty_text" else "tabscan_queue_failed"
+                    Logger.i("send_text(tabscan) len=${text?.length ?: 0} -> $ok")
+                    sendCommandAck(
+                        requestId,
+                        ok,
+                        error,
+                        if (ok) "QUEUED" else "FAILED",
+                    )
+                    return
+                }
                 val (ok, error) = if (text.isNullOrBlank()) {
                     false to "empty_text"
                 } else {
@@ -236,6 +250,27 @@ class CoreForegroundService : Service() {
                     if (ok) "SENT" else "FAILED",
                 )
             }
+        }
+    }
+
+    private fun enqueueTabScanOutbound(text: String): Boolean {
+        return try {
+            sendBroadcast(
+                Intent(com.ws.wx_server.acc.MyAccessibilityService.ACTION_ENQUEUE_OUTBOUND_MSG).apply {
+                    setPackage(packageName)
+                    putExtra(com.ws.wx_server.acc.MyAccessibilityService.EXTRA_OUTBOUND_TEXT, text)
+                }
+            )
+            sendBroadcast(
+                Intent(com.ws.wx_server.acc.MyAccessibilityService.ACTION_START_TAB_SCAN).apply {
+                    setPackage(packageName)
+                }
+            )
+            Logger.i("enqueueTabScanOutbound len=${text.length}")
+            true
+        } catch (t: Throwable) {
+            Logger.e("enqueueTabScanOutbound failed: ${t.message}", t)
+            false
         }
     }
 

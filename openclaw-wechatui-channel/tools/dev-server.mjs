@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import http from "node:http";
 import { randomUUID } from "node:crypto";
+import readline from "node:readline";
 
 const host = String(process.env.HOST ?? "0.0.0.0").trim() || "0.0.0.0";
 const port = Number.parseInt(String(process.env.PORT ?? "18790"), 10) || 18790;
@@ -66,6 +67,16 @@ function enqueueTask(type, payload) {
   tasks.push(task);
   if (tasks.length > MAX_TASKS) tasks.splice(0, tasks.length - MAX_TASKS);
   return task;
+}
+
+function enqueueTabScanText(text) {
+  const requestId = randomUUID();
+  const task = enqueueTask("send_text", {
+    request_id: requestId,
+    text,
+    mode: "tabscan",
+  });
+  return { requestId, taskId: task.task_id };
 }
 
 function handleClientPull(body, res) {
@@ -159,6 +170,17 @@ function handleDevEnqueueSendText(body, res) {
   writeJson(res, 200, { ok: true, request_id: requestId, task_id: task.task_id });
 }
 
+function handleDevEnqueueMsg(body, res) {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    writeJson(res, 400, { ok: false, error: "invalid payload" });
+    return;
+  }
+  const text = String(body.text ?? "");
+  if (!text.trim()) return writeJson(res, 400, { ok: false, error: "missing text" });
+  const result = enqueueTabScanText(text);
+  writeJson(res, 200, { ok: true, request_id: result.requestId, task_id: result.taskId, mode: "tabscan" });
+}
+
 function handleDevState(_req, res) {
   writeJson(res, 200, {
     ok: true,
@@ -193,6 +215,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/client/pull") return handleClientPull(body.value, res);
   if (url.pathname === "/client/push") return handleClientPush(body.value, res);
   if (url.pathname === "/dev/enqueue/send_text") return handleDevEnqueueSendText(body.value, res);
+  if (url.pathname === "/dev/enqueue/msg") return handleDevEnqueueMsg(body.value, res);
 
   res.statusCode = 404;
   res.end("Not Found");
@@ -201,6 +224,21 @@ const server = http.createServer(async (req, res) => {
 server.listen(port, host, () => {
   console.log(`[dev-server] listening on http://${host}:${port}`);
   console.log("[dev-server] endpoints: POST /client/pull , POST /client/push");
-  console.log("[dev-server] dev endpoints: POST /dev/enqueue/send_text , GET /dev/state");
+  console.log("[dev-server] dev endpoints: POST /dev/enqueue/send_text , POST /dev/enqueue/msg , GET /dev/state");
+  console.log("[dev-server] stdin: type a message then press Enter to enqueue tabscan send_text");
+  if (process.stdin.isTTY) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout, prompt: "msg> " });
+    rl.prompt();
+    rl.on("line", (line) => {
+      const text = String(line ?? "").trim();
+      if (!text) {
+        rl.prompt();
+        return;
+      }
+      const result = enqueueTabScanText(text);
+      console.log(`[dev-server] enqueued tabscan message task_id=${result.taskId} request_id=${result.requestId}`);
+      rl.prompt();
+    });
+  }
 });
 

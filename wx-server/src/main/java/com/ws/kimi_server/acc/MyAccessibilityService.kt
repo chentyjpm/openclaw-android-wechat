@@ -61,6 +61,9 @@ class MyAccessibilityService : AccessibilityService() {
     private var tabScanTicker: Runnable? = null
     private val tabScanPushExecutor = Executors.newSingleThreadExecutor()
     private val tabScanPushClient = OkHttpClient()
+    private val tabScanOutboundQueue = ArrayDeque<String>()
+    private var tabScanSendingText: String? = null
+    private var tabScanAwaitSendButton = false
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -178,6 +181,16 @@ class MyAccessibilityService : AccessibilityService() {
                 when (intent?.action) {
                     ACTION_START_TAB_SCAN -> startTabScan()
                     ACTION_STOP_TAB_SCAN -> stopTabScan("manual_stop")
+                    ACTION_ENQUEUE_OUTBOUND_MSG -> {
+                        val text = intent.getStringExtra(EXTRA_OUTBOUND_TEXT).orEmpty().trim()
+                        if (text.isNotEmpty()) {
+                            tabScanOutboundQueue.addLast(text)
+                            Logger.i(
+                                "TabScan outbound queued size=${tabScanOutboundQueue.size} len=${text.length}",
+                                tag = "LanBotTabScan",
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -186,6 +199,7 @@ class MyAccessibilityService : AccessibilityService() {
             IntentFilter().apply {
                 addAction(ACTION_START_TAB_SCAN)
                 addAction(ACTION_STOP_TAB_SCAN)
+                addAction(ACTION_ENQUEUE_OUTBOUND_MSG)
             },
             RECEIVER_NOT_EXPORTED,
         )
@@ -257,6 +271,8 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanFocusedEvents.clear()
         tabScanTargetEvents.clear()
         tabScanSeenFirst = false
+        tabScanSendingText = null
+        tabScanAwaitSendButton = false
     }
 
     private fun scheduleTabTick() {
@@ -287,6 +303,7 @@ class MyAccessibilityService : AccessibilityService() {
         if (event.eventType != AccessibilityEvent.TYPE_VIEW_FOCUSED) return
         val pkg = event.packageName?.toString().orEmpty()
         val cls = event.className?.toString().orEmpty()
+        val textJoined = event.text?.joinToString("|").orEmpty()
         val evt = org.json.JSONObject()
             .put("ts_ms", System.currentTimeMillis())
             .put("step", tabScanSteps)
@@ -294,7 +311,7 @@ class MyAccessibilityService : AccessibilityService() {
             .put("pkg", pkg)
             .put("cls", cls)
             .put("window_id", event.windowId)
-            .put("text", event.text?.joinToString("|").orEmpty())
+            .put("text", textJoined)
             .put("content_desc", event.contentDescription?.toString().orEmpty())
             .put("item_count", event.itemCount)
             .put("from_index", event.fromIndex)
@@ -308,6 +325,8 @@ class MyAccessibilityService : AccessibilityService() {
             tag = "LanBotTabScan",
         )
 
+        tryHandleOutboundSendOnFocus(pkg = pkg, cls = cls, text = textJoined)
+
         if (!isTarget) return
         tabScanTargetEvents.add(evt)
         Logger.i("TabScan captured EditText focus #${tabScanTargetEvents.size}", tag = "LanBotTabScan")
@@ -317,6 +336,60 @@ class MyAccessibilityService : AccessibilityService() {
             Logger.i("TabScan first EditText found", tag = "LanBotTabScan")
         } else {
             completeTabScanCycle(reason = "second_edittext_found", continueLoop = true)
+        }
+    }
+
+    private fun tryHandleOutboundSendOnFocus(pkg: String, cls: String, text: String) {
+        if (pkg != TAB_SCAN_TARGET_PKG) return
+
+        if (!tabScanAwaitSendButton && cls == TAB_SCAN_TARGET_CLS && tabScanSendingText == null) {
+            val next = tabScanOutboundQueue.removeFirstOrNull()
+            if (next != null) {
+                val committed = LanBotImeService.commitTextFromService(next)
+                if (committed) {
+                    tabScanSendingText = next
+                    tabScanAwaitSendButton = true
+                    Logger.i(
+                        "TabScan outbound pasted len=${next.length}; waiting send button focus",
+                        tag = "LanBotTabScan",
+                    )
+                } else {
+                    tabScanOutboundQueue.addFirst(next)
+                    Logger.w(
+                        "TabScan outbound paste failed; re-queued size=${tabScanOutboundQueue.size}",
+                        tag = "LanBotTabScan",
+                    )
+                }
+            }
+        }
+
+        if (!tabScanAwaitSendButton) return
+        if (cls != TAB_SCAN_SEND_BUTTON_CLS) return
+        if (!text.contains(TAB_SCAN_SEND_BUTTON_TEXT)) return
+
+        val sendingText = tabScanSendingText
+        val enterOk = LanBotImeService.sendEnterFromService()
+        Logger.i(
+            "TabScan outbound send button focused -> enter=$enterOk",
+            tag = "LanBotTabScan",
+        )
+        if (enterOk) {
+            tabScanSendingText = null
+            tabScanAwaitSendButton = false
+            Logger.i(
+                "TabScan outbound sent ok len=${sendingText?.length ?: 0} queue=${tabScanOutboundQueue.size}",
+                tag = "LanBotTabScan",
+            )
+        } else {
+            if (!sendingText.isNullOrEmpty()) {
+                tabScanOutboundQueue.addFirst(sendingText)
+            }
+            tabScanSendingText = null
+            tabScanAwaitSendButton = false
+            Logger.w(
+                "TabScan outbound send failed; message re-queued size=${tabScanOutboundQueue.size}",
+                tag = "LanBotTabScan",
+            )
         }
     }
 
@@ -985,6 +1058,8 @@ class MyAccessibilityService : AccessibilityService() {
         private const val TAB_SCAN_INTERVAL_MS = 250L
         private const val TAB_SCAN_TARGET_PKG = "com.tencent.mm"
         private const val TAB_SCAN_TARGET_CLS = "android.widget.EditText"
+        private const val TAB_SCAN_SEND_BUTTON_CLS = "android.widget.Button"
+        private const val TAB_SCAN_SEND_BUTTON_TEXT = "\u53D1\u9001"
         private const val TAB_SCAN_SEGMENT_START_CLS = "android.widget.LinearLayout"
         private const val TAB_SCAN_SEGMENT_END_CLS = "android.widget.ImageButton"
         private const val TAB_SCAN_SEGMENT_END_MARKER = "切换到按住说话"
@@ -995,6 +1070,7 @@ class MyAccessibilityService : AccessibilityService() {
         const val ACTION_DISCONNECTED = "com.ws.wx_server.ACC_DISCONNECTED"
         const val ACTION_START_TAB_SCAN = "com.ws.wx_server.START_TAB_SCAN"
         const val ACTION_STOP_TAB_SCAN = "com.ws.wx_server.STOP_TAB_SCAN"
+        const val ACTION_ENQUEUE_OUTBOUND_MSG = "com.ws.wx_server.ENQUEUE_OUTBOUND_MSG"
         const val ACTION_TAB_SCAN_DONE = "com.ws.wx_server.TAB_SCAN_DONE"
         const val EXTRA_PKG = "pkg"
         const val EXTRA_TEXT = "text"
@@ -1005,5 +1081,6 @@ class MyAccessibilityService : AccessibilityService() {
         const val EXTRA_OCR_JSON = "ocr_json"
         const val EXTRA_TAB_SCAN_JSON = "tab_scan_json"
         const val EXTRA_TAB_SCAN_FILE = "tab_scan_file"
+        const val EXTRA_OUTBOUND_TEXT = "outbound_text"
     }
 }

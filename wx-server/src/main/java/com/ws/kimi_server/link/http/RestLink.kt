@@ -175,7 +175,7 @@ class RestLink(private val cfg: ServerConfig) : Link {
 
     companion object {
         private val JSON = "application/json; charset=utf-8".toMediaType()
-        private const val POLL_INTERVAL_MS = 3_000L
+        private const val POLL_INTERVAL_MS = 4_000L
         private const val PULL_LIMIT = 10
         private const val MAX_PENDING = 200
     }
