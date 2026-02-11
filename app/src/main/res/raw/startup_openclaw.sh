@@ -389,13 +389,6 @@ install_wechat_plugin() {
         exit 1
     fi
 
-    # Skip if plugin already exists.
-    if env PATH="$NPM_BIN:$PATH" "$OPENCLAW_CMD" plugins list 2>/dev/null | grep -Eq "(^|[[:space:]])$PLUGIN_NAME([[:space:]]|$)"; then
-        log "Plugin already installed, skip install: $PLUGIN_NAME"
-        echo -e "${GREEN}Plugin already installed, skip: $PLUGIN_NAME${NC}"
-        return 0
-    fi
-
     # Install plugin dependencies (excluding dev dependencies).
     run_cmd sh -c "cd \"$PLUGIN_EXTRACT_DIR\" && PATH=\"$NPM_BIN:\$PATH\" npm install --omit=dev --no-audit --no-fund"
     if [ $? -ne 0 ]; then
@@ -424,6 +417,14 @@ install_wechat_plugin() {
         echo -e "${RED}Error: failed to link global openclaw dependency${NC}"
         exit 1
     fi
+
+    # If plugin is already registered, skip re-running plugin install command.
+    if env PATH="$NPM_BIN:$PATH" "$OPENCLAW_CMD" plugins list 2>/dev/null | grep -Eq "(^|[[:space:]])$PLUGIN_NAME([[:space:]]|$)"; then
+        log "Plugin already registered; dependencies and symlink refreshed: $PLUGIN_NAME"
+        echo -e "${GREEN}Plugin already installed; refreshed dependencies and symlink: $PLUGIN_NAME${NC}"
+        return 0
+    fi
+
     # Install plugin via symlink mode.
     PLUGIN_LINK_NAME=$(basename "$PLUGIN_EXTRACT_DIR")
     run_cmd sh -c "cd \"$HOME\" && PATH=\"$NPM_BIN:\$PATH\" npm_execpath=\"$NPM_CMD\" npm_node_execpath=\"$NODE_CMD\" openclaw plugins install -l \"$PLUGIN_LINK_NAME\""
