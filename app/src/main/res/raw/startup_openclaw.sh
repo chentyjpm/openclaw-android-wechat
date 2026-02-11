@@ -389,7 +389,21 @@ install_wechat_plugin() {
         exit 1
     fi
 
-    # Install plugin dependencies (excluding dev dependencies).
+    # Link plugin node_modules to global node_modules.
+    GLOBAL_NODE_MODULES=$(PATH="$NPM_BIN:$PATH" npm root -g 2>/dev/null | tr -d '\r')
+    if [ -z "$GLOBAL_NODE_MODULES" ]; then
+        GLOBAL_NODE_MODULES="$NPM_GLOBAL/lib/node_modules"
+    fi
+    run_cmd mkdir -p "$GLOBAL_NODE_MODULES"
+    run_cmd rm -rf "$PLUGIN_EXTRACT_DIR/node_modules"
+    run_cmd ln -sfn "$GLOBAL_NODE_MODULES" "$PLUGIN_EXTRACT_DIR/node_modules"
+    if [ $? -ne 0 ]; then
+        log "Failed to link plugin node_modules to global node_modules"
+        echo -e "${RED}Error: failed to link plugin node_modules to global path${NC}"
+        exit 1
+    fi
+
+    # Install plugin dependencies (excluding dev dependencies) into linked global node_modules.
     run_cmd sh -c "cd \"$PLUGIN_EXTRACT_DIR\" && PATH=\"$NPM_BIN:\$PATH\" npm install --omit=dev --no-audit --no-fund"
     if [ $? -ne 0 ]; then
         log "Failed to run npm install in plugin directory: $PLUGIN_EXTRACT_DIR"
@@ -397,31 +411,10 @@ install_wechat_plugin() {
         exit 1
     fi
 
-
-    # Link global openclaw package into plugin node_modules to avoid local re-install.
-    GLOBAL_NODE_MODULES=$(PATH="$NPM_BIN:$PATH" npm root -g 2>/dev/null | tr -d '\r')
-    if [ -z "$GLOBAL_NODE_MODULES" ]; then
-        GLOBAL_NODE_MODULES="$NPM_GLOBAL/lib/node_modules"
-    fi
-    GLOBAL_OPENCLAW_DIR="$GLOBAL_NODE_MODULES/openclaw"
-    if [ ! -d "$GLOBAL_OPENCLAW_DIR" ]; then
-        log "Global openclaw package not found: $GLOBAL_OPENCLAW_DIR"
-        echo -e "${RED}Error: global openclaw package not found for plugin link${NC}"
-        exit 1
-    fi
-    run_cmd mkdir -p "$PLUGIN_EXTRACT_DIR/node_modules"
-    run_cmd rm -rf "$PLUGIN_EXTRACT_DIR/node_modules/openclaw"
-    run_cmd ln -sfn "$GLOBAL_OPENCLAW_DIR" "$PLUGIN_EXTRACT_DIR/node_modules/openclaw"
-    if [ $? -ne 0 ]; then
-        log "Failed to link global openclaw into plugin node_modules"
-        echo -e "${RED}Error: failed to link global openclaw dependency${NC}"
-        exit 1
-    fi
-
     # If plugin is already registered, skip re-running plugin install command.
     if env PATH="$NPM_BIN:$PATH" "$OPENCLAW_CMD" plugins list 2>/dev/null | grep -Eq "(^|[[:space:]])$PLUGIN_NAME([[:space:]]|$)"; then
-        log "Plugin already registered; dependencies and symlink refreshed: $PLUGIN_NAME"
-        echo -e "${GREEN}Plugin already installed; refreshed dependencies and symlink: $PLUGIN_NAME${NC}"
+        log "Plugin already registered; dependencies and node_modules link refreshed: $PLUGIN_NAME"
+        echo -e "${GREEN}Plugin already installed; refreshed dependencies and node_modules link: $PLUGIN_NAME${NC}"
         return 0
     fi
 
