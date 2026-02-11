@@ -25,6 +25,7 @@ import com.ws.wx_server.util.Logger
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import kotlin.math.max
 
 class MyAccessibilityService : AccessibilityService() {
     private var lastSent = 0L
@@ -48,8 +49,7 @@ class MyAccessibilityService : AccessibilityService() {
     private val tabScanTargetEvents = mutableListOf<org.json.JSONObject>()
     private var tabScanCycleIndex = 0
     private var tabScanChangedCycleCount = 0
-    private var tabScanPreviousSignature: String? = null
-    private var tabScanPreviousContents: Set<String> = emptySet()
+    private var tabScanPreviousDescList: List<String> = emptyList()
     private var tabScanLastCycleFile: String? = null
     private var tabScanLastDeltaFile: String? = null
     private var tabScanTicker: Runnable? = null
@@ -202,8 +202,7 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanSessionStartedAt = System.currentTimeMillis()
         tabScanCycleIndex = 0
         tabScanChangedCycleCount = 0
-        tabScanPreviousSignature = null
-        tabScanPreviousContents = emptySet()
+        tabScanPreviousDescList = emptyList()
         tabScanLastCycleFile = null
         tabScanLastDeltaFile = null
         Logger.i("TabScan started: loop mode, stepping TAB via IME every 250ms", tag = "LanBotTabScan")
@@ -327,14 +326,10 @@ class MyAccessibilityService : AccessibilityService() {
             }
             return
         }
-        val signature = buildTabScanSignature(tabScanFocusedEvents)
-        val currentContents = extractTabScanContents(tabScanFocusedEvents)
-        val addedContents = if (tabScanPreviousSignature == null) {
-            currentContents.toList()
-        } else {
-            currentContents.filter { it !in tabScanPreviousContents }
-        }
-        val changed = tabScanPreviousSignature == null || tabScanPreviousSignature != signature
+        val segment = extractTabScanDescSegment(tabScanFocusedEvents)
+        val currentDescList = segment?.descList ?: emptyList()
+        val addedDescList = findOrderedAddedDesc(tabScanPreviousDescList, currentDescList)
+        val changed = currentDescList != tabScanPreviousDescList
 
         val cycle = org.json.JSONObject()
             .put("cycle", tabScanCycleIndex)
@@ -343,9 +338,15 @@ class MyAccessibilityService : AccessibilityService() {
             .put("elapsed_ms", (System.currentTimeMillis() - tabScanCycleStartedAt).coerceAtLeast(0L))
             .put("focused_count", tabScanFocusedEvents.size)
             .put("target_count", tabScanTargetEvents.size)
+            .put("segment_found", segment != null)
+            .put("segment_window_id", segment?.windowId ?: -1)
+            .put("segment_start_index", segment?.startIndex ?: -1)
+            .put("segment_end_index", segment?.endIndex ?: -1)
+            .put("desc_count", currentDescList.size)
+            .put("desc_list", org.json.JSONArray().apply { currentDescList.forEach { put(it) } })
             .put("changed", changed)
-            .put("added_count", addedContents.size)
-            .put("added_contents", org.json.JSONArray().apply { addedContents.forEach { put(it) } })
+            .put("added_count", addedDescList.size)
+            .put("added_contents", org.json.JSONArray().apply { addedDescList.forEach { put(it) } })
             .put("events", org.json.JSONArray().apply { tabScanFocusedEvents.forEach { put(it) } })
             .put("target_events", org.json.JSONArray().apply { tabScanTargetEvents.forEach { put(it) } })
         val cycleString = cycle.toString()
@@ -353,22 +354,32 @@ class MyAccessibilityService : AccessibilityService() {
         val cyclePath = saveTabScanResultToSdcard(cycleString)
         tabScanLastCycleFile = cyclePath
         Logger.i("TabScan cycle file: ${cyclePath ?: "<failed>"}", tag = "LanBotTabScan")
+        if (segment == null) {
+            Logger.w(
+                "TabScan segment not found: start=LinearLayout end=ImageButton(${TAB_SCAN_SEGMENT_END_MARKER})",
+                tag = "LanBotTabScan",
+            )
+        }
 
         if (changed) {
             tabScanChangedCycleCount += 1
             val delta = org.json.JSONObject()
                 .put("cycle", tabScanCycleIndex)
-                .put("added_count", addedContents.size)
-                .put("added_contents", org.json.JSONArray().apply { addedContents.forEach { put(it) } })
+                .put("segment_found", segment != null)
+                .put("segment_window_id", segment?.windowId ?: -1)
+                .put("desc_count", currentDescList.size)
+                .put("desc_list", org.json.JSONArray().apply { currentDescList.forEach { put(it) } })
+                .put("added_count", addedDescList.size)
+                .put("added_contents", org.json.JSONArray().apply { addedDescList.forEach { put(it) } })
             val deltaString = delta.toString()
             logLong("LanBotTabScan", "TabScan delta: ", deltaString)
-            if (addedContents.isEmpty()) {
+            if (addedDescList.isEmpty()) {
                 Logger.i("TabScan added contents: <NONE>", tag = "LanBotTabScan")
             } else {
-                addedContents.forEachIndexed { index, content ->
+                addedDescList.forEachIndexed { index, content ->
                     logLong(
                         tag = "LanBotTabScan",
-                        prefix = "TabScan added[${index + 1}/${addedContents.size}]: ",
+                        prefix = "TabScan added[${index + 1}/${addedDescList.size}]: ",
                         text = content,
                     )
                 }
@@ -379,38 +390,99 @@ class MyAccessibilityService : AccessibilityService() {
             Logger.i("TabScan cycle #$tabScanCycleIndex unchanged", tag = "LanBotTabScan")
         }
 
-        tabScanPreviousSignature = signature
-        tabScanPreviousContents = currentContents.toSet()
+        tabScanPreviousDescList = currentDescList
 
         if (continueLoop && tabScanActive) {
             startNextTabScanCycle()
         }
     }
 
-    private fun buildTabScanSignature(events: List<org.json.JSONObject>): String {
-        val arr = org.json.JSONArray()
-        events.forEach { evt ->
-            arr.put(
-                org.json.JSONObject()
-                    .put("pkg", evt.optString("pkg"))
-                    .put("cls", evt.optString("cls"))
-                    .put("text", evt.optString("text"))
-                    .put("content_desc", evt.optString("content_desc"))
-                    .put("is_target_edittext", evt.optBoolean("is_target_edittext")),
-            )
+    private data class TabScanDescSegment(
+        val windowId: Int,
+        val startIndex: Int,
+        val endIndex: Int,
+        val descList: List<String>,
+    )
+
+    private fun extractTabScanDescSegment(events: List<org.json.JSONObject>): TabScanDescSegment? {
+        var startIndex = -1
+        var windowId = -1
+        for (i in events.indices) {
+            val evt = events[i]
+            if (evt.optString("pkg") != TAB_SCAN_TARGET_PKG) continue
+            if (evt.optString("cls") != TAB_SCAN_SEGMENT_START_CLS) continue
+            startIndex = i
+            windowId = evt.optInt("window_id", -1)
+            break
         }
-        return arr.toString()
+        if (startIndex < 0) return null
+
+        var endIndex = -1
+        for (i in startIndex until events.size) {
+            val evt = events[i]
+            if (evt.optString("pkg") != TAB_SCAN_TARGET_PKG) continue
+            if (windowId >= 0 && evt.optInt("window_id", -1) != windowId) continue
+            if (evt.optString("cls") != TAB_SCAN_SEGMENT_END_CLS) continue
+            val text = evt.optString("text")
+            val desc = evt.optString("content_desc")
+            if (text.contains(TAB_SCAN_SEGMENT_END_MARKER) || desc.contains(TAB_SCAN_SEGMENT_END_MARKER)) {
+                endIndex = i
+                break
+            }
+        }
+        if (endIndex < 0) return null
+
+        val descList = ArrayList<String>()
+        for (i in startIndex..endIndex) {
+            val evt = events[i]
+            if (evt.optString("pkg") != TAB_SCAN_TARGET_PKG) continue
+            if (windowId >= 0 && evt.optInt("window_id", -1) != windowId) continue
+            val desc = evt.optString("content_desc").trim()
+            if (desc.isEmpty()) continue
+            if (descList.isEmpty() || descList.last() != desc) {
+                descList.add(desc)
+            }
+        }
+        return TabScanDescSegment(
+            windowId = windowId,
+            startIndex = startIndex,
+            endIndex = endIndex,
+            descList = descList,
+        )
     }
 
-    private fun extractTabScanContents(events: List<org.json.JSONObject>): List<String> {
-        val values = linkedSetOf<String>()
-        events.forEach { evt ->
-            val text = evt.optString("text").trim()
-            val desc = evt.optString("content_desc").trim()
-            if (text.isNotEmpty()) values.add(text)
-            if (desc.isNotEmpty()) values.add(desc)
+    private fun findOrderedAddedDesc(previous: List<String>, current: List<String>): List<String> {
+        if (previous.isEmpty()) return current.toList()
+        if (current.isEmpty()) return emptyList()
+
+        val n = previous.size
+        val m = current.size
+        val dp = Array(n + 1) { IntArray(m + 1) }
+        for (i in n - 1 downTo 0) {
+            for (j in m - 1 downTo 0) {
+                dp[i][j] = if (previous[i] == current[j]) {
+                    dp[i + 1][j + 1] + 1
+                } else {
+                    max(dp[i + 1][j], dp[i][j + 1])
+                }
+            }
         }
-        return values.toList()
+
+        val added = ArrayList<String>()
+        var i = 0
+        var j = 0
+        while (j < m) {
+            if (i < n && previous[i] == current[j]) {
+                i += 1
+                j += 1
+            } else if (i < n && dp[i + 1][j] >= dp[i][j + 1]) {
+                i += 1
+            } else {
+                added.add(current[j])
+                j += 1
+            }
+        }
+        return added
     }
 
     private fun saveTabScanResultToSdcard(content: String): String? {
@@ -819,6 +891,9 @@ class MyAccessibilityService : AccessibilityService() {
         private const val TAB_SCAN_INTERVAL_MS = 250L
         private const val TAB_SCAN_TARGET_PKG = "com.tencent.mm"
         private const val TAB_SCAN_TARGET_CLS = "android.widget.EditText"
+        private const val TAB_SCAN_SEGMENT_START_CLS = "android.widget.LinearLayout"
+        private const val TAB_SCAN_SEGMENT_END_CLS = "android.widget.ImageButton"
+        private const val TAB_SCAN_SEGMENT_END_MARKER = "切换到按住说话"
         const val ACTION_SNAPSHOT = "com.ws.wx_server.ACC_SNAPSHOT"
         const val ACTION_CONNECTED = "com.ws.wx_server.ACC_CONNECTED"
         const val ACTION_DISCONNECTED = "com.ws.wx_server.ACC_DISCONNECTED"
