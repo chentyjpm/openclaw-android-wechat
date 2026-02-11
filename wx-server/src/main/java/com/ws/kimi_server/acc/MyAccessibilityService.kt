@@ -558,7 +558,7 @@ class MyAccessibilityService : AccessibilityService() {
                 "envelopes",
                 org.json.JSONArray().put(
                     org.json.JSONObject().put(
-                        "tabscan_delta",
+                        "msg",
                         org.json.JSONObject()
                             .put("text", text),
                     ),

@@ -101,7 +101,7 @@ function logWindowState(ws) {
 function logTabScanDelta(delta) {
   if (!delta || typeof delta !== "object" || Array.isArray(delta)) return;
   const text = String(delta.text ?? "");
-  console.log(`[dev-server] tabscan_delta text=${JSON.stringify(text)}`);
+  console.log(`[dev-server] msg text=${JSON.stringify(text)}`);
 }
 
 function handleClientPush(body, res) {
@@ -127,7 +127,7 @@ function handleClientPush(body, res) {
         lastWindowState = env.window_state;
         logWindowState(env.window_state);
       }
-      if (env.tabscan_delta) logTabScanDelta(env.tabscan_delta);
+      if (env.msg) logTabScanDelta(env.msg);
     }
   });
 }
