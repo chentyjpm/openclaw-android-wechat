@@ -11,18 +11,43 @@ class PPOcrRecognizer(private val context: Context) {
     private var engine: PaddleOCRNcnn? = null
 
     fun recognize(bitmap: Bitmap): String? {
+        return recognizeDetailed(bitmap)?.text
+    }
+
+    fun recognizeDetailed(bitmap: Bitmap): OcrResult? {
         synchronized(lock) {
             if (!ensureInited()) return null
             val native = engine ?: return null
             return try {
                 val results = native.Detect(bitmap, false) ?: return null
-                val text = results
+                val lines = results
                     .filterNotNull()
                     .sortedWith(compareBy<PaddleOCRNcnn.Obj>({ minOf(it.y0, it.y1, it.y2, it.y3) }, { minOf(it.x0, it.x1, it.x2, it.x3) }))
-                    .mapNotNull { it.label?.trim()?.takeIf { s -> s.isNotEmpty() } }
+                    .mapNotNull { obj ->
+                        val label = obj.label?.trim()?.takeIf { s -> s.isNotEmpty() } ?: return@mapNotNull null
+                        val quad = listOf(
+                            Point(obj.x0, obj.y0),
+                            Point(obj.x1, obj.y1),
+                            Point(obj.x2, obj.y2),
+                            Point(obj.x3, obj.y3),
+                        )
+                        val xs = quad.map { it.x }
+                        val ys = quad.map { it.y }
+                        OcrLine(
+                            text = label,
+                            prob = obj.prob,
+                            quad = quad,
+                            left = xs.minOrNull() ?: 0f,
+                            top = ys.minOrNull() ?: 0f,
+                            right = xs.maxOrNull() ?: 0f,
+                            bottom = ys.maxOrNull() ?: 0f,
+                        )
+                    }
+                val text = lines
+                    .map { it.text }
                     .joinToString("\n")
                     .trim()
-                text.takeIf { it.isNotEmpty() }
+                if (lines.isEmpty()) null else OcrResult(text = text, lines = lines)
             } catch (t: Throwable) {
                 Logger.w("NCNN OCR detect failed: ${t.message}")
                 null
@@ -85,4 +110,24 @@ class PPOcrRecognizer(private val context: Context) {
             "paddleocr_keys.txt",
         )
     }
+
+    data class OcrResult(
+        val text: String,
+        val lines: List<OcrLine>,
+    )
+
+    data class OcrLine(
+        val text: String,
+        val prob: Float,
+        val quad: List<Point>,
+        val left: Float,
+        val top: Float,
+        val right: Float,
+        val bottom: Float,
+    )
+
+    data class Point(
+        val x: Float,
+        val y: Float,
+    )
 }

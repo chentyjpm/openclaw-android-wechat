@@ -115,6 +115,10 @@ class CoreForegroundService : Service() {
                         if (!capture.isNullOrBlank()) {
                             try { put("capture", org.json.JSONObject(capture)) } catch (_: Throwable) {}
                         }
+                        val ocr = intent.getStringExtra(com.ws.wx_server.acc.MyAccessibilityService.EXTRA_OCR_JSON)
+                        if (!ocr.isNullOrBlank()) {
+                            try { put("ocr", org.json.JSONObject(ocr)) } catch (_: Throwable) {}
+                        }
                     }
                     if (debug) {
                         link.sendText(json.toString())

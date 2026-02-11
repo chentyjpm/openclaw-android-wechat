@@ -170,6 +170,9 @@ class MyAccessibilityService : AccessibilityService() {
                 .put("ts_ms", it.payload.tsMs)
                 .put("data_base64", it.payload.dataBase64)
             intent.putExtra(EXTRA_CAPTURE_JSON, captureJson.toString())
+            if (!it.ocrJson.isNullOrBlank()) {
+                intent.putExtra(EXTRA_OCR_JSON, it.ocrJson)
+            }
         }
         intent.putExtra(EXTRA_TEXT, recognizedText)
         maybeLogOcrTextChange(recognizedText)
@@ -225,12 +228,14 @@ class MyAccessibilityService : AccessibilityService() {
                 dataBase64 = captured.base64Jpeg,
             ),
             text = captured.ocrText,
+            ocrJson = captured.ocrJson,
         )
     }
 
     private data class CapturedPayload(
         val payload: TaskBridge.CapturePayload,
         val text: String,
+        val ocrJson: String?,
     )
 
     private data class CapturedFrame(
@@ -239,6 +244,7 @@ class MyAccessibilityService : AccessibilityService() {
         val height: Int,
         val base64Jpeg: String,
         val ocrText: String,
+        val ocrJson: String?,
     )
 
     private fun captureScreenFrame(): CapturedFrame? {
@@ -259,11 +265,13 @@ class MyAccessibilityService : AccessibilityService() {
         val scaled = scaleBitmap(source, CAPTURE_MAX_WIDTH)
         val outputWidth = scaled.width
         val outputHeight = scaled.height
-        val ocrText = try {
-            ppOcrRecognizer.recognize(scaled) ?: ""
+        val ocrResult = try {
+            ppOcrRecognizer.recognizeDetailed(scaled)
         } catch (_: Throwable) {
-            ""
+            null
         }
+        val ocrText = ocrResult?.text ?: ""
+        val ocrJson = ocrResult?.let { toOcrJson(it) }
         val out = ByteArrayOutputStream()
         if (!scaled.compress(Bitmap.CompressFormat.JPEG, CAPTURE_JPEG_QUALITY, out)) {
             if (scaled !== source) scaled.recycle()
@@ -281,7 +289,36 @@ class MyAccessibilityService : AccessibilityService() {
             height = outputHeight,
             base64Jpeg = encoded,
             ocrText = ocrText,
+            ocrJson = ocrJson,
         )
+    }
+
+    private fun toOcrJson(result: PPOcrRecognizer.OcrResult): String {
+        val lines = org.json.JSONArray()
+        for (line in result.lines) {
+            val quad = org.json.JSONArray()
+            for (p in line.quad) {
+                quad.put(org.json.JSONObject().put("x", p.x).put("y", p.y))
+            }
+            lines.put(
+                org.json.JSONObject()
+                    .put("text", line.text)
+                    .put("prob", line.prob)
+                    .put("quad", quad)
+                    .put(
+                        "bbox",
+                        org.json.JSONObject()
+                            .put("left", line.left)
+                            .put("top", line.top)
+                            .put("right", line.right)
+                            .put("bottom", line.bottom),
+                    ),
+            )
+        }
+        return org.json.JSONObject()
+            .put("text", result.text)
+            .put("lines", lines)
+            .toString()
     }
 
     private fun scaleBitmap(source: Bitmap, maxWidth: Int): Bitmap {
@@ -358,5 +395,6 @@ class MyAccessibilityService : AccessibilityService() {
         const val EXTRA_WECHAT_JSON = "wechat_json"
         const val EXTRA_STATE_JSON = "state_json"
         const val EXTRA_CAPTURE_JSON = "capture_json"
+        const val EXTRA_OCR_JSON = "ocr_json"
     }
 }
