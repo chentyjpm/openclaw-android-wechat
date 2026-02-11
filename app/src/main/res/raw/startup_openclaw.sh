@@ -417,6 +417,7 @@ install_wechat_plugin() {
         exit 1
     fi
     run_cmd mkdir -p "$PLUGIN_EXTRACT_DIR/node_modules"
+    run_cmd rm -rf "$PLUGIN_EXTRACT_DIR/node_modules/openclaw"
     run_cmd ln -sfn "$GLOBAL_OPENCLAW_DIR" "$PLUGIN_EXTRACT_DIR/node_modules/openclaw"
     if [ $? -ne 0 ]; then
         log "Failed to link global openclaw into plugin node_modules"
