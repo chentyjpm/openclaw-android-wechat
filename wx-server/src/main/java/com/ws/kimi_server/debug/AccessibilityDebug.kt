@@ -24,8 +24,10 @@ object AccessibilityDebug {
         val cfg = LinkConfigStore.load(service.applicationContext)
         if (!cfg.debugEvents && !cfg.debugXml) return
         if (cfg.debugEvents) {
-            val summary = buildEventSummary(event)
-            Logger.i("AccEvent: $summary", tag = "LanBotAccEvent")
+            if (event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
+                val summary = buildEventSummary(event)
+                Logger.i("AccEvent: $summary", tag = "LanBotAccEvent")
+            }
         }
         if (cfg.debugXml && shouldDumpXml(event)) {
             val now = SystemClock.uptimeMillis()
