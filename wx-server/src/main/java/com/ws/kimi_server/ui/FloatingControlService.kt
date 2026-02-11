@@ -15,6 +15,7 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import com.ws.wx_server.R
+import com.ws.wx_server.acc.MyAccessibilityService
 import com.ws.wx_server.core.CoreForegroundService
 import com.ws.wx_server.core.ServiceStateStore
 import com.ws.wx_server.util.Logger
@@ -93,6 +94,8 @@ class FloatingControlService : Service() {
         stateText = view.findViewById(R.id.tv_float_state)
         val startBtn = view.findViewById<Button>(R.id.btn_float_start)
         val stopBtn = view.findViewById<Button>(R.id.btn_float_stop)
+        val tabScanStartBtn = view.findViewById<Button>(R.id.btn_float_tab_scan_start)
+        val tabScanStopBtn = view.findViewById<Button>(R.id.btn_float_tab_scan_stop)
 
         startBtn.setOnClickListener {
             CoreForegroundService.start(this)
@@ -103,6 +106,14 @@ class FloatingControlService : Service() {
             CoreForegroundService.stop(this)
             updateStateText()
             Toast.makeText(this, "Service stopped", Toast.LENGTH_SHORT).show()
+        }
+        tabScanStartBtn.setOnClickListener {
+            sendBroadcast(Intent(MyAccessibilityService.ACTION_START_TAB_SCAN).apply { setPackage(packageName) })
+            Toast.makeText(this, "Tab scan started", Toast.LENGTH_SHORT).show()
+        }
+        tabScanStopBtn.setOnClickListener {
+            sendBroadcast(Intent(MyAccessibilityService.ACTION_STOP_TAB_SCAN).apply { setPackage(packageName) })
+            Toast.makeText(this, "Tab scan stopped", Toast.LENGTH_SHORT).show()
         }
 
         val dragHandle = view.findViewById<View>(R.id.float_root)
@@ -145,4 +156,3 @@ class FloatingControlService : Service() {
         return Settings.canDrawOverlays(this)
     }
 }
-

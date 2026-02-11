@@ -2,7 +2,10 @@ package com.ws.wx_server.acc
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
@@ -11,7 +14,9 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
+import android.view.View
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import com.ws.wx_server.capture.ScreenCaptureManager
 import com.ws.wx_server.debug.AccessibilityDebug
 import com.ws.wx_server.exec.TaskBridge
@@ -33,6 +38,15 @@ class MyAccessibilityService : AccessibilityService() {
     private val ppOcrRecognizer by lazy { PPOcrRecognizer(applicationContext) }
     private var lastLoggedOcrText: String? = null
     private var lastLoggedOcrJson: String? = null
+    private var commandReceiver: BroadcastReceiver? = null
+
+    private var tabScanActive = false
+    private var tabScanSeenFirst = false
+    private var tabScanStartedAt = 0L
+    private var tabScanSteps = 0
+    private val tabScanEvents = mutableListOf<org.json.JSONObject>()
+    private var tabScanTicker: Runnable? = null
+    private var tabScanTimeout: Runnable? = null
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -63,6 +77,7 @@ class MyAccessibilityService : AccessibilityService() {
             i.setPackage(packageName)
             sendBroadcast(i)
         } catch (_: Throwable) { }
+        registerCommandReceiver()
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
@@ -80,6 +95,8 @@ class MyAccessibilityService : AccessibilityService() {
         ServiceHolder.service = null
         AccessibilityStateStore.setConnected(applicationContext, false)
         ScreenCaptureManager.release()
+        unregisterCommandReceiver()
+        stopTabScan("service_destroyed")
         pendingFollowUp?.let { handler.removeCallbacks(it) }
         pendingFollowUp = null
         Logger.i("Accessibility destroyed")
@@ -88,6 +105,7 @@ class MyAccessibilityService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null) return
         AccessibilityDebug.onEvent(this, event)
+        handleTabScanFocusEvent(event)
         val type = event.eventType
         if (type == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
             val pkg = event.packageName?.toString() ?: ""
@@ -131,6 +149,171 @@ class MyAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         // No-op for now
+    }
+
+    private fun registerCommandReceiver() {
+        if (commandReceiver != null) return
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                when (intent?.action) {
+                    ACTION_START_TAB_SCAN -> startTabScan()
+                    ACTION_STOP_TAB_SCAN -> stopTabScan("manual_stop")
+                }
+            }
+        }
+        registerReceiver(
+            receiver,
+            IntentFilter().apply {
+                addAction(ACTION_START_TAB_SCAN)
+                addAction(ACTION_STOP_TAB_SCAN)
+            },
+            RECEIVER_NOT_EXPORTED,
+        )
+        commandReceiver = receiver
+    }
+
+    private fun unregisterCommandReceiver() {
+        val receiver = commandReceiver ?: return
+        try {
+            unregisterReceiver(receiver)
+        } catch (_: Throwable) {
+        }
+        commandReceiver = null
+    }
+
+    private fun startTabScan() {
+        if (tabScanActive) {
+            Logger.i("TabScan already running", tag = "LanBotTabScan")
+            return
+        }
+        tabScanActive = true
+        tabScanSeenFirst = false
+        tabScanSteps = 0
+        tabScanStartedAt = System.currentTimeMillis()
+        tabScanEvents.clear()
+        Logger.i("TabScan started: waiting first VIEW_FOCUSED EditText", tag = "LanBotTabScan")
+        tabScanTimeout = Runnable { stopTabScan("timeout") }.also {
+            handler.postDelayed(it, TAB_SCAN_MAX_DURATION_MS)
+        }
+    }
+
+    private fun stopTabScan(reason: String) {
+        if (!tabScanActive && tabScanEvents.isEmpty()) return
+        tabScanActive = false
+        tabScanSeenFirst = false
+        tabScanTicker?.let { handler.removeCallbacks(it) }
+        tabScanTicker = null
+        tabScanTimeout?.let { handler.removeCallbacks(it) }
+        tabScanTimeout = null
+
+        val result = org.json.JSONObject()
+            .put("reason", reason)
+            .put("steps", tabScanSteps)
+            .put("elapsed_ms", (System.currentTimeMillis() - tabScanStartedAt).coerceAtLeast(0L))
+            .put("count", tabScanEvents.size)
+            .put("events", org.json.JSONArray().apply { tabScanEvents.forEach { put(it) } })
+        val resultString = result.toString()
+        logLong("LanBotTabScan", "TabScan result: ", resultString)
+        val path = saveTabScanResultToSdcard(resultString)
+        Logger.i("TabScan file: ${path ?: "<failed>"}", tag = "LanBotTabScan")
+        try {
+            sendBroadcast(Intent(ACTION_TAB_SCAN_DONE).apply {
+                setPackage(packageName)
+                putExtra(EXTRA_TAB_SCAN_JSON, resultString)
+                putExtra(EXTRA_TAB_SCAN_FILE, path ?: "")
+            })
+        } catch (_: Throwable) {
+        }
+        tabScanEvents.clear()
+    }
+
+    private fun scheduleTabTick() {
+        tabScanTicker?.let { handler.removeCallbacks(it) }
+        tabScanTicker = object : Runnable {
+            override fun run() {
+                if (!tabScanActive || !tabScanSeenFirst) return
+                performTabStep()
+                tabScanSteps += 1
+                if (tabScanSteps >= TAB_SCAN_MAX_STEPS) {
+                    stopTabScan("max_steps")
+                    return
+                }
+                handler.postDelayed(this, TAB_SCAN_INTERVAL_MS)
+            }
+        }.also { handler.postDelayed(it, TAB_SCAN_INTERVAL_MS) }
+    }
+
+    private fun performTabStep() {
+        val root = rootInActiveWindow
+        val moved = tryMoveFocusForward(root)
+        if (!moved) {
+            val shellOk = sendTabKeyByShell()
+            Logger.i("TabScan step fallback shell_tab=$shellOk", tag = "LanBotTabScan")
+        }
+    }
+
+    private fun tryMoveFocusForward(root: AccessibilityNodeInfo?): Boolean {
+        root ?: return false
+        val current = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: root.findFocus(AccessibilityNodeInfo.FOCUS_ACCESSIBILITY)
+            ?: return false
+        val next = current.focusSearch(View.FOCUS_FORWARD)
+        if (next != null && next.performAction(AccessibilityNodeInfo.ACTION_FOCUS)) {
+            return true
+        }
+        return false
+    }
+
+    private fun sendTabKeyByShell(): Boolean {
+        return try {
+            val p = Runtime.getRuntime().exec(arrayOf("sh", "-c", "input keyevent 61"))
+            p.waitFor()
+            p.exitValue() == 0
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun handleTabScanFocusEvent(event: AccessibilityEvent) {
+        if (!tabScanActive) return
+        if (event.eventType != AccessibilityEvent.TYPE_VIEW_FOCUSED) return
+        val pkg = event.packageName?.toString().orEmpty()
+        val cls = event.className?.toString().orEmpty()
+        if (pkg != TAB_SCAN_TARGET_PKG || cls != TAB_SCAN_TARGET_CLS) return
+
+        val evt = org.json.JSONObject()
+            .put("ts_ms", System.currentTimeMillis())
+            .put("type", "VIEW_FOCUSED")
+            .put("pkg", pkg)
+            .put("cls", cls)
+            .put("window_id", event.windowId)
+            .put("text", event.text?.joinToString("|").orEmpty())
+            .put("content_desc", event.contentDescription?.toString().orEmpty())
+            .put("item_count", event.itemCount)
+            .put("from_index", event.fromIndex)
+            .put("to_index", event.toIndex)
+        tabScanEvents.add(evt)
+        Logger.i("TabScan captured EditText focus #${tabScanEvents.size}", tag = "LanBotTabScan")
+
+        if (!tabScanSeenFirst) {
+            tabScanSeenFirst = true
+            Logger.i("TabScan first EditText found, start stepping with TAB", tag = "LanBotTabScan")
+            scheduleTabTick()
+        } else {
+            stopTabScan("second_edittext_found")
+        }
+    }
+
+    private fun saveTabScanResultToSdcard(content: String): String? {
+        return try {
+            val dir = File(SDCARD_OCR_DIR)
+            if (!dir.exists() && !dir.mkdirs()) return null
+            val file = File(dir, "tab_scan_${System.currentTimeMillis()}.json")
+            file.writeText(content)
+            file.absolutePath
+        } catch (_: Throwable) {
+            null
+        }
     }
 
     private data class SnapshotResult(val status: SnapshotStatus, val retryDelayMs: Long = 0L)
@@ -508,9 +691,17 @@ class MyAccessibilityService : AccessibilityService() {
         private const val SAVE_CAPTURE_TO_SDCARD = true
         private const val SDCARD_OCR_DIR = "/sdcard/ocr"
         private const val LOGCAT_CHUNK_SIZE = 2800
+        private const val TAB_SCAN_INTERVAL_MS = 250L
+        private const val TAB_SCAN_MAX_STEPS = 120
+        private const val TAB_SCAN_MAX_DURATION_MS = 45_000L
+        private const val TAB_SCAN_TARGET_PKG = "com.tencent.mm"
+        private const val TAB_SCAN_TARGET_CLS = "android.widget.EditText"
         const val ACTION_SNAPSHOT = "com.ws.wx_server.ACC_SNAPSHOT"
         const val ACTION_CONNECTED = "com.ws.wx_server.ACC_CONNECTED"
         const val ACTION_DISCONNECTED = "com.ws.wx_server.ACC_DISCONNECTED"
+        const val ACTION_START_TAB_SCAN = "com.ws.wx_server.START_TAB_SCAN"
+        const val ACTION_STOP_TAB_SCAN = "com.ws.wx_server.STOP_TAB_SCAN"
+        const val ACTION_TAB_SCAN_DONE = "com.ws.wx_server.TAB_SCAN_DONE"
         const val EXTRA_PKG = "pkg"
         const val EXTRA_TEXT = "text"
         const val EXTRA_CLS = "cls"
@@ -518,5 +709,7 @@ class MyAccessibilityService : AccessibilityService() {
         const val EXTRA_STATE_JSON = "state_json"
         const val EXTRA_CAPTURE_JSON = "capture_json"
         const val EXTRA_OCR_JSON = "ocr_json"
+        const val EXTRA_TAB_SCAN_JSON = "tab_scan_json"
+        const val EXTRA_TAB_SCAN_FILE = "tab_scan_file"
     }
 }
