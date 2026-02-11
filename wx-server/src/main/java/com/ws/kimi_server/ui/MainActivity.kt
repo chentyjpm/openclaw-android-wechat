@@ -45,6 +45,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var debugXmlSwitch: SwitchCompat
     private var pendingStartServiceAfterGrant = false
     private var promptedCaptureThisResume = false
+    private var promptedOverlayThisResume = false
 
     private val accListener = AccessibilityManager.AccessibilityStateChangeListener {
         updateAccessibilityStatus()
@@ -86,6 +87,7 @@ class MainActivity : AppCompatActivity() {
             }
         }
         enableFloatControlBtn.setOnClickListener { requestOverlayPermissionAndStartFloatControl() }
+        ensureFloatingControlAlwaysOn()
 
         serviceStartBtn.setOnClickListener {
             val cfg = com.ws.wx_server.link.LinkConfigStore.load(this)
@@ -134,6 +136,7 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         promptedCaptureThisResume = false
+        promptedOverlayThisResume = false
         updateAccessibilityStatus()
         updateRecentPkg()
         updateServiceStateUi(ServiceStateStore.isRunning(this))
@@ -147,6 +150,7 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Throwable) {
         }
         maybePromptScreenCapturePermission()
+        ensureFloatingControlAlwaysOn()
     }
 
     override fun onDestroy() {
@@ -242,7 +246,6 @@ class MainActivity : AppCompatActivity() {
     private fun requestOverlayPermissionAndStartFloatControl() {
         if (canDrawOverlays()) {
             startFloatingControl()
-            Toast.makeText(this, "Floating control enabled", Toast.LENGTH_SHORT).show()
             return
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -281,9 +284,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun startFloatingControl() {
         try {
-            startService(Intent(this, FloatingControlService::class.java))
+            val serviceIntent = Intent(this, FloatingControlService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
         } catch (_: Throwable) {
             Toast.makeText(this, "Failed to start floating control", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun ensureFloatingControlAlwaysOn() {
+        if (canDrawOverlays()) {
+            startFloatingControl()
+            return
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && !promptedOverlayThisResume) {
+            promptedOverlayThisResume = true
+            requestOverlayPermissionAndStartFloatControl()
         }
     }
 

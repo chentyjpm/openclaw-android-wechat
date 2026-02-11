@@ -1,5 +1,9 @@
 package com.ws.wx_server.ui
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
 import android.graphics.PixelFormat
@@ -14,6 +18,7 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
+import androidx.core.app.NotificationCompat
 import com.ws.wx_server.R
 import com.ws.wx_server.acc.MyAccessibilityService
 import com.ws.wx_server.apps.wechat.WeChatSpec
@@ -32,6 +37,11 @@ class FloatingControlService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        startAsForeground()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (!canDrawOverlays()) {
             Logger.w("Floating control requires overlay permission")
@@ -46,6 +56,46 @@ class FloatingControlService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         removeOverlay()
+    }
+
+    private fun startAsForeground() {
+        createNotificationChannel()
+        startForeground(NOTIFICATION_ID, buildNotification())
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val nm = getSystemService(NotificationManager::class.java) ?: return
+        val existing = nm.getNotificationChannel(NOTIFICATION_CHANNEL_ID)
+        if (existing != null) return
+        val channel = NotificationChannel(
+            NOTIFICATION_CHANNEL_ID,
+            "Floating Control",
+            NotificationManager.IMPORTANCE_MIN,
+        ).apply {
+            description = "Keeps the floating control visible"
+            setShowBadge(false)
+        }
+        nm.createNotificationChannel(channel)
+    }
+
+    private fun buildNotification(): Notification {
+        val openIntent = Intent(this, MainActivity::class.java)
+        val pendingFlags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+        val pending = PendingIntent.getActivity(this, 0, openIntent, pendingFlags)
+        return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
+            .setSmallIcon(R.drawable.kimi_ic_status_on)
+            .setContentTitle("LanBot Floating Control")
+            .setContentText("Floating window is active")
+            .setContentIntent(pending)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .build()
     }
 
     private fun ensureOverlay() {
@@ -172,5 +222,10 @@ class FloatingControlService : Service() {
     private fun canDrawOverlays(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
         return Settings.canDrawOverlays(this)
+    }
+
+    companion object {
+        private const val NOTIFICATION_CHANNEL_ID = "lanbot_floating_control"
+        private const val NOTIFICATION_ID = 1002
     }
 }
