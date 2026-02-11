@@ -66,75 +66,11 @@
         android:layout_height="wrap_content"
         android:text="@string/openclaw_btn_server_settings" />
 
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingTop="12dp">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Recent foreground app" />
-
-        <TextView
-            android:id="@+id/tv_recent_pkg"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="unknown" />
-    </LinearLayout>
-
-    <Button
-        android:id="@+id/btn_open_usage_access"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="@string/openclaw_btn_usage_access" />
-
     <Button
         android:id="@+id/btn_open_accessibility"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="@string/openclaw_btn_open_accessibility" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingBottom="16dp">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Debug events" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/switch_debug"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingBottom="16dp">
-
-        <TextView
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:text="Debug XML" />
-
-        <androidx.appcompat.widget.SwitchCompat
-            android:id="@+id/switch_debug_xml"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content" />
-    </LinearLayout>
 
     <Button
         android:id="@+id/btn_open_ime_settings"

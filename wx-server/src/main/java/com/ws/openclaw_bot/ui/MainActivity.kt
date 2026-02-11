@@ -15,7 +15,6 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-import androidx.appcompat.widget.SwitchCompat
 import com.ws.wx_server.R
 import com.ws.wx_server.capture.ScreenCapturePermissionStore
 import com.ws.wx_server.core.CoreForegroundService
@@ -35,13 +34,9 @@ open class MainActivity : AppCompatActivity() {
     private lateinit var serverStatusIcon: android.widget.ImageView
     private lateinit var serverStatusText: TextView
     private lateinit var openServerSettings: Button
-    private lateinit var openUsageAccess: Button
     private lateinit var openAccessibilityBtn: Button
     private lateinit var openImeSettingsBtn: Button
     private lateinit var pickImeBtn: Button
-    private lateinit var recentPkgText: TextView
-    private lateinit var debugSwitch: SwitchCompat
-    private lateinit var debugXmlSwitch: SwitchCompat
     private var pendingStartServiceAfterGrant = false
     private var promptedCaptureThisResume = false
     private var promptedOverlayThisResume = false
@@ -62,19 +57,14 @@ open class MainActivity : AppCompatActivity() {
         serviceStateText = findViewById(R.id.tv_service_state)
         serviceStartBtn = findViewById(R.id.btn_service_start)
         serviceStopBtn = findViewById(R.id.btn_service_stop)
-        debugSwitch = findViewById(R.id.switch_debug)
-        debugXmlSwitch = findViewById(R.id.switch_debug_xml)
         openServerSettings = findViewById(R.id.btn_open_server_settings)
-        openUsageAccess = findViewById(R.id.btn_open_usage_access)
         openAccessibilityBtn = findViewById(R.id.btn_open_accessibility)
         openImeSettingsBtn = findViewById(R.id.btn_open_ime_settings)
         pickImeBtn = findViewById(R.id.btn_pick_ime)
-        recentPkgText = findViewById(R.id.tv_recent_pkg)
         updateServiceStateUi(ServiceStateStore.isRunning(this))
 
         openTerminalBtn.setOnClickListener { openTermuxTerminal() }
         openServerSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
-        openUsageAccess.setOnClickListener { com.ws.wx_server.util.openUsageAccessSettings(this) }
         openAccessibilityBtn.setOnClickListener { openAccessibilitySettings(this) }
         openImeSettingsBtn.setOnClickListener { openInputMethodSettings() }
         pickImeBtn.setOnClickListener { showInputMethodPicker() }
@@ -110,18 +100,6 @@ open class MainActivity : AppCompatActivity() {
         registerReceiver(linkReceiver, IntentFilter(CoreForegroundService.ACTION_LINK_STATE))
         registerReceiver(accConnectedReceiver, IntentFilter(com.ws.wx_server.acc.MyAccessibilityService.ACTION_CONNECTED))
         registerReceiver(accDisconnectedReceiver, IntentFilter(com.ws.wx_server.acc.MyAccessibilityService.ACTION_DISCONNECTED))
-
-        val cfg0 = com.ws.wx_server.link.LinkConfigStore.load(this)
-        debugSwitch.isChecked = cfg0.debugEvents
-        debugXmlSwitch.isChecked = cfg0.debugXml
-        debugSwitch.setOnCheckedChangeListener { _, isChecked ->
-            val cur = com.ws.wx_server.link.LinkConfigStore.load(this)
-            com.ws.wx_server.link.LinkConfigStore.save(this, cur.copy(debugEvents = isChecked))
-        }
-        debugXmlSwitch.setOnCheckedChangeListener { _, isChecked ->
-            val cur = com.ws.wx_server.link.LinkConfigStore.load(this)
-            com.ws.wx_server.link.LinkConfigStore.save(this, cur.copy(debugXml = isChecked))
-        }
     }
 
     override fun onResume() {
@@ -129,11 +107,7 @@ open class MainActivity : AppCompatActivity() {
         promptedCaptureThisResume = false
         promptedOverlayThisResume = false
         updateAccessibilityStatus()
-        updateRecentPkg()
         updateServiceStateUi(ServiceStateStore.isRunning(this))
-        val cfg = com.ws.wx_server.link.LinkConfigStore.load(this)
-        debugSwitch.isChecked = cfg.debugEvents
-        debugXmlSwitch.isChecked = cfg.debugXml
         try {
             val i = Intent(CoreForegroundService.ACTION_QUERY_STATE)
             i.setPackage(packageName)
@@ -188,16 +162,6 @@ open class MainActivity : AppCompatActivity() {
         val enabled = isAccessibilityEnabled(this)
         statusText.text = if (enabled) "Accessibility: enabled" else "Accessibility: disabled"
         statusIcon.setImageResource(if (enabled) R.drawable.openclaw_ic_status_on else R.drawable.openclaw_ic_status_off)
-    }
-
-    private fun updateRecentPkg() {
-        val has = com.ws.wx_server.util.isUsageAccessGranted(this)
-        if (!has) {
-            recentPkgText.text = "Not granted"
-            return
-        }
-        val pkg = com.ws.wx_server.util.getLatestForegroundPackage(this, 60_000) ?: "unknown"
-        recentPkgText.text = pkg
     }
 
     private fun updateServiceStateUi(running: Boolean) {
