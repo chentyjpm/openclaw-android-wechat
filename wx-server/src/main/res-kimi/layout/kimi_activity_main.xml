@@ -130,6 +130,18 @@
         android:text="Open Accessibility Settings" />
 
     <Button
+        android:id="@+id/btn_open_ime_settings"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Open Keyboard Settings" />
+
+    <Button
+        android:id="@+id/btn_pick_ime"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Choose LanBot Keyboard" />
+
+    <Button
         android:id="@+id/btn_grant_screen_capture"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

@@ -20,6 +20,7 @@ import com.ws.wx_server.apps.wechat.WeChatSpec
 import com.ws.wx_server.core.CoreForegroundService
 import com.ws.wx_server.core.ServiceStateStore
 import com.ws.wx_server.exec.AccessibilityAgent
+import com.ws.wx_server.ime.LanBotImeService
 import com.ws.wx_server.util.Logger
 
 class FloatingControlService : Service() {
@@ -107,6 +108,9 @@ class FloatingControlService : Service() {
             Thread {
                 val switched = accessibilityAgent.nav_to_app(this, WeChatSpec.PKG)
                 Logger.i("Floating start: switch to WeChat -> $switched", tag = "LanBotTabScan")
+                if (!LanBotImeService.isServiceActive()) {
+                    Logger.w("Floating start: LanBot Keyboard inactive", tag = "LanBotTabScan")
+                }
                 sendBroadcast(
                     Intent(MyAccessibilityService.ACTION_START_TAB_SCAN).apply { setPackage(packageName) }
                 )
@@ -118,6 +122,10 @@ class FloatingControlService : Service() {
             Toast.makeText(this, "Service stopped", Toast.LENGTH_SHORT).show()
         }
         tabScanStartBtn.setOnClickListener {
+            if (!LanBotImeService.isServiceActive()) {
+                Toast.makeText(this, "Enable/select LanBot Keyboard first", Toast.LENGTH_SHORT).show()
+                Logger.w("Floating tab scan start: LanBot Keyboard inactive", tag = "LanBotTabScan")
+            }
             sendBroadcast(Intent(MyAccessibilityService.ACTION_START_TAB_SCAN).apply { setPackage(packageName) })
             Toast.makeText(this, "Tab scan started", Toast.LENGTH_SHORT).show()
         }

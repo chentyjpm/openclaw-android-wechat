@@ -18,6 +18,7 @@ import android.view.accessibility.AccessibilityEvent
 import com.ws.wx_server.capture.ScreenCaptureManager
 import com.ws.wx_server.debug.AccessibilityDebug
 import com.ws.wx_server.exec.TaskBridge
+import com.ws.wx_server.ime.LanBotImeService
 import com.ws.wx_server.link.CAPTURE_STRATEGY_SCREEN_FIRST
 import com.ws.wx_server.ocr.PPOcrRecognizer
 import com.ws.wx_server.util.Logger
@@ -194,7 +195,10 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanSteps = 0
         tabScanStartedAt = System.currentTimeMillis()
         tabScanEvents.clear()
-        Logger.i("TabScan started: stepping TAB every 250ms and listening VIEW_FOCUSED EditText", tag = "LanBotTabScan")
+        Logger.i("TabScan started: stepping TAB via IME every 250ms and listening VIEW_FOCUSED EditText", tag = "LanBotTabScan")
+        if (!LanBotImeService.isServiceActive()) {
+            Logger.w("TabScan IME inactive: enable/select LanBot Keyboard first", tag = "LanBotTabScan")
+        }
         scheduleTabTick()
         tabScanTimeout = Runnable { stopTabScan("timeout") }.also {
             handler.postDelayed(it, TAB_SCAN_MAX_DURATION_MS)
@@ -248,20 +252,13 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     private fun performTabStep() {
-        val shellOk = sendTabKeyByShell()
-        Logger.i("TabScan step=${tabScanSteps + 1} mode=shell_tab ok=$shellOk", tag = "LanBotTabScan")
-    }
-
-    private fun sendTabKeyByShell(): Boolean {
-        return try {
-            val p = Runtime.getRuntime().exec(arrayOf("sh", "-c", "input keyevent 61"))
-            p.waitFor()
-            val ok = p.exitValue() == 0
-            Logger.i("TabScan shell input keyevent 61 exit=${p.exitValue()}", tag = "LanBotTabScan")
-            ok
-        } catch (_: Throwable) {
-            Logger.w("TabScan shell input keyevent 61 exception", tag = "LanBotTabScan")
-            false
+        val imeOk = LanBotImeService.sendTabFromService()
+        Logger.i("TabScan step=${tabScanSteps + 1} mode=ime_tab ok=$imeOk", tag = "LanBotTabScan")
+        if (!imeOk && (tabScanSteps + 1) % 10 == 1) {
+            Logger.w(
+                "TabScan IME tab failed: confirm LanBot Keyboard is selected and EditText has input focus",
+                tag = "LanBotTabScan",
+            )
         }
     }
 

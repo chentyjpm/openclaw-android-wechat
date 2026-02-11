@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
@@ -35,6 +36,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var serverStatusText: TextView
     private lateinit var openServerSettings: Button
     private lateinit var openUsageAccess: Button
+    private lateinit var openImeSettingsBtn: Button
+    private lateinit var pickImeBtn: Button
     private lateinit var grantScreenCaptureBtn: Button
     private lateinit var enableFloatControlBtn: Button
     private lateinit var recentPkgText: TextView
@@ -63,6 +66,8 @@ class MainActivity : AppCompatActivity() {
         debugXmlSwitch = findViewById(R.id.switch_debug_xml)
         openServerSettings = findViewById(R.id.btn_open_server_settings)
         openUsageAccess = findViewById(R.id.btn_open_usage_access)
+        openImeSettingsBtn = findViewById(R.id.btn_open_ime_settings)
+        pickImeBtn = findViewById(R.id.btn_pick_ime)
         grantScreenCaptureBtn = findViewById(R.id.btn_grant_screen_capture)
         enableFloatControlBtn = findViewById(R.id.btn_enable_float_control)
         recentPkgText = findViewById(R.id.tv_recent_pkg)
@@ -71,6 +76,8 @@ class MainActivity : AppCompatActivity() {
         openSettingsBtn.setOnClickListener { openAccessibilitySettings(this) }
         openServerSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         openUsageAccess.setOnClickListener { com.ws.wx_server.util.openUsageAccessSettings(this) }
+        openImeSettingsBtn.setOnClickListener { openInputMethodSettings() }
+        pickImeBtn.setOnClickListener { showInputMethodPicker() }
         grantScreenCaptureBtn.setOnClickListener {
             if (TEMP_DISABLE_CAPTURE_AND_OCR) {
                 Toast.makeText(this, "Capture/OCR temporarily disabled", Toast.LENGTH_SHORT).show()
@@ -248,6 +255,27 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             startFloatingControl()
+        }
+    }
+
+    private fun openInputMethodSettings() {
+        try {
+            startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+        } catch (_: Throwable) {
+            Toast.makeText(this, "Failed to open keyboard settings", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun showInputMethodPicker() {
+        val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
+        if (imm == null) {
+            Toast.makeText(this, "InputMethodManager unavailable", Toast.LENGTH_SHORT).show()
+            return
+        }
+        try {
+            imm.showInputMethodPicker()
+        } catch (_: Throwable) {
+            Toast.makeText(this, "Failed to show keyboard picker", Toast.LENGTH_SHORT).show()
         }
     }
 
