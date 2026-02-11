@@ -43,7 +43,8 @@ class MyAccessibilityService : AccessibilityService() {
     private var tabScanSeenFirst = false
     private var tabScanStartedAt = 0L
     private var tabScanSteps = 0
-    private val tabScanEvents = mutableListOf<org.json.JSONObject>()
+    private val tabScanFocusedEvents = mutableListOf<org.json.JSONObject>()
+    private val tabScanTargetEvents = mutableListOf<org.json.JSONObject>()
     private var tabScanTicker: Runnable? = null
     private var tabScanTimeout: Runnable? = null
 
@@ -194,7 +195,8 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanSeenFirst = false
         tabScanSteps = 0
         tabScanStartedAt = System.currentTimeMillis()
-        tabScanEvents.clear()
+        tabScanFocusedEvents.clear()
+        tabScanTargetEvents.clear()
         Logger.i("TabScan started: stepping TAB via IME every 250ms and listening VIEW_FOCUSED EditText", tag = "LanBotTabScan")
         if (!LanBotImeService.isServiceActive()) {
             Logger.w("TabScan IME inactive: enable/select LanBot Keyboard first", tag = "LanBotTabScan")
@@ -206,7 +208,7 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     private fun stopTabScan(reason: String) {
-        if (!tabScanActive && tabScanEvents.isEmpty()) return
+        if (!tabScanActive && tabScanFocusedEvents.isEmpty() && tabScanTargetEvents.isEmpty()) return
         tabScanActive = false
         tabScanSeenFirst = false
         tabScanTicker?.let { handler.removeCallbacks(it) }
@@ -218,8 +220,11 @@ class MyAccessibilityService : AccessibilityService() {
             .put("reason", reason)
             .put("steps", tabScanSteps)
             .put("elapsed_ms", (System.currentTimeMillis() - tabScanStartedAt).coerceAtLeast(0L))
-            .put("count", tabScanEvents.size)
-            .put("events", org.json.JSONArray().apply { tabScanEvents.forEach { put(it) } })
+            .put("count", tabScanFocusedEvents.size)
+            .put("focused_count", tabScanFocusedEvents.size)
+            .put("target_count", tabScanTargetEvents.size)
+            .put("events", org.json.JSONArray().apply { tabScanFocusedEvents.forEach { put(it) } })
+            .put("target_events", org.json.JSONArray().apply { tabScanTargetEvents.forEach { put(it) } })
         val resultString = result.toString()
         logLong("LanBotTabScan", "TabScan result: ", resultString)
         val path = saveTabScanResultToSdcard(resultString)
@@ -232,7 +237,8 @@ class MyAccessibilityService : AccessibilityService() {
             })
         } catch (_: Throwable) {
         }
-        tabScanEvents.clear()
+        tabScanFocusedEvents.clear()
+        tabScanTargetEvents.clear()
     }
 
     private fun scheduleTabTick() {
@@ -267,10 +273,9 @@ class MyAccessibilityService : AccessibilityService() {
         if (event.eventType != AccessibilityEvent.TYPE_VIEW_FOCUSED) return
         val pkg = event.packageName?.toString().orEmpty()
         val cls = event.className?.toString().orEmpty()
-        if (pkg != TAB_SCAN_TARGET_PKG || cls != TAB_SCAN_TARGET_CLS) return
-
         val evt = org.json.JSONObject()
             .put("ts_ms", System.currentTimeMillis())
+            .put("step", tabScanSteps)
             .put("type", "VIEW_FOCUSED")
             .put("pkg", pkg)
             .put("cls", cls)
@@ -280,8 +285,18 @@ class MyAccessibilityService : AccessibilityService() {
             .put("item_count", event.itemCount)
             .put("from_index", event.fromIndex)
             .put("to_index", event.toIndex)
-        tabScanEvents.add(evt)
-        Logger.i("TabScan captured EditText focus #${tabScanEvents.size}", tag = "LanBotTabScan")
+        val isTarget = pkg == TAB_SCAN_TARGET_PKG && cls == TAB_SCAN_TARGET_CLS
+        evt.put("is_target_edittext", isTarget)
+
+        tabScanFocusedEvents.add(evt)
+        Logger.i(
+            "TabScan focused #${tabScanFocusedEvents.size} step=$tabScanSteps pkg=$pkg cls=$cls target=$isTarget",
+            tag = "LanBotTabScan",
+        )
+
+        if (!isTarget) return
+        tabScanTargetEvents.add(evt)
+        Logger.i("TabScan captured EditText focus #${tabScanTargetEvents.size}", tag = "LanBotTabScan")
 
         if (!tabScanSeenFirst) {
             tabScanSeenFirst = true
