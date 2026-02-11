@@ -145,6 +145,9 @@ class MyAccessibilityService : AccessibilityService() {
         }
         val pkg = lastPkg
         val cls = lastCls
+        if (pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG) {
+            Logger.i("OCR snapshot trigger: force=$force cls=$cls", tag = "LanBotOCR")
+        }
         var recognizedText = ""
         val intent = Intent(ACTION_SNAPSHOT).apply {
             putExtra(EXTRA_PKG, pkg)
@@ -198,8 +201,19 @@ class MyAccessibilityService : AccessibilityService() {
         val shouldCapture = strategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
             pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
-        if (!shouldCapture) return null
-        if (!force && now - lastCaptureAt < SCREEN_CAPTURE_THROTTLE_MS) return null
+        if (!shouldCapture) {
+            if (pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG) {
+                Logger.i(
+                    "OCR skip capture: strategy=$strategy sdk=${Build.VERSION.SDK_INT}",
+                    tag = "LanBotOCR",
+                )
+            }
+            return null
+        }
+        if (!force && now - lastCaptureAt < SCREEN_CAPTURE_THROTTLE_MS) {
+            Logger.i("OCR skip capture: throttled", tag = "LanBotOCR")
+            return null
+        }
         val captured = captureScreenFrame() ?: return null
         lastCaptureAt = now
         return CapturedPayload(
@@ -242,14 +256,18 @@ class MyAccessibilityService : AccessibilityService() {
                     }
 
                     override fun onFailure(errorCode: Int) {
+                        Logger.w("OCR screenshot failed: code=$errorCode", tag = "LanBotOCR")
                         latch.countDown()
                     }
                 },
             )
-            latch.await(450, TimeUnit.MILLISECONDS)
+            val ok = latch.await(450, TimeUnit.MILLISECONDS)
+            if (!ok) Logger.w("OCR screenshot timeout", tag = "LanBotOCR")
         } catch (_: Throwable) {
+            Logger.w("OCR screenshot exception", tag = "LanBotOCR")
             return null
         }
+        if (out == null) Logger.i("OCR screenshot frame is null", tag = "LanBotOCR")
         return out
     }
 
