@@ -2,13 +2,13 @@
 
 <!DOCTYPE resources [
     <!ENTITY TERMUX_PACKAGE_NAME "com.termux">
-    <!ENTITY TERMUX_APP_NAME "Termux">
-    <!ENTITY TERMUX_API_APP_NAME "Termux:API">
-    <!ENTITY TERMUX_BOOT_APP_NAME "Termux:Boot">
-    <!ENTITY TERMUX_FLOAT_APP_NAME "Termux:Float">
-    <!ENTITY TERMUX_STYLING_APP_NAME "Termux:Styling">
-    <!ENTITY TERMUX_TASKER_APP_NAME "Termux:Tasker">
-    <!ENTITY TERMUX_WIDGET_APP_NAME "Termux:Widget">
+    <!ENTITY TERMUX_APP_NAME "OpenClawBot">
+    <!ENTITY TERMUX_API_APP_NAME "OpenClawBot:API">
+    <!ENTITY TERMUX_BOOT_APP_NAME "OpenClawBot:Boot">
+    <!ENTITY TERMUX_FLOAT_APP_NAME "OpenClawBot:Float">
+    <!ENTITY TERMUX_STYLING_APP_NAME "OpenClawBot:Styling">
+    <!ENTITY TERMUX_TASKER_APP_NAME "OpenClawBot:Tasker">
+    <!ENTITY TERMUX_WIDGET_APP_NAME "OpenClawBot:Widget">
     ]>
 
 <resources>
@@ -237,7 +237,7 @@
     <string name="donate_preference_title">Donate</string>
 
     <!-- OpenClaw Home -->
-    <string name="openclaw_open_terminal">打开终端 (Termux)</string>
+    <string name="openclaw_open_terminal">打开终端 (OpenClawBot)</string>
     <string name="openclaw_open_wechat_bot">打开微信自动回复 (茴香豆)</string>
     <string name="openclaw_accessibility_settings">辅助功能设置</string>
 

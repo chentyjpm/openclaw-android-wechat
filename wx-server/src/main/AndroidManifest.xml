@@ -34,6 +34,7 @@
         <service
             android:name="com.ws.wx_server.acc.MyAccessibilityService"
             android:exported="false"
+            android:label="@string/openclaw_accessibility_service_name"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <intent-filter>
                 <action android:name="android.accessibilityservice.AccessibilityService" />

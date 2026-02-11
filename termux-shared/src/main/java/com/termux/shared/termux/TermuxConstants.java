@@ -347,7 +347,7 @@ public final class TermuxConstants {
      */
 
     /** Termux app name */
-    public static final String TERMUX_APP_NAME = "Termux"; // Default: "Termux"
+    public static final String TERMUX_APP_NAME = "OpenClawBot"; // Default: "OpenClawBot"
     /** Termux package name */
     public static final String TERMUX_PACKAGE_NAME = "com.termux"; // Default: "com.termux"
     /** Termux GitHub repo name */
@@ -361,7 +361,7 @@ public final class TermuxConstants {
 
 
     /** Termux:API app name */
-    public static final String TERMUX_API_APP_NAME = "Termux:API"; // Default: "Termux:API"
+    public static final String TERMUX_API_APP_NAME = "OpenClawBot:API"; // Default: "OpenClawBot:API"
     /** Termux:API app package name */
     public static final String TERMUX_API_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".api"; // Default: "com.termux.api"
     /** Termux:API GitHub repo name */
@@ -375,7 +375,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Boot app name */
-    public static final String TERMUX_BOOT_APP_NAME = "Termux:Boot"; // Default: "Termux:Boot"
+    public static final String TERMUX_BOOT_APP_NAME = "OpenClawBot:Boot"; // Default: "OpenClawBot:Boot"
     /** Termux:Boot app package name */
     public static final String TERMUX_BOOT_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".boot"; // Default: "com.termux.boot"
     /** Termux:Boot GitHub repo name */
@@ -389,7 +389,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Float app name */
-    public static final String TERMUX_FLOAT_APP_NAME = "Termux:Float"; // Default: "Termux:Float"
+    public static final String TERMUX_FLOAT_APP_NAME = "OpenClawBot:Float"; // Default: "OpenClawBot:Float"
     /** Termux:Float app package name */
     public static final String TERMUX_FLOAT_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".window"; // Default: "com.termux.window"
     /** Termux:Float GitHub repo name */
@@ -403,7 +403,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Styling app name */
-    public static final String TERMUX_STYLING_APP_NAME = "Termux:Styling"; // Default: "Termux:Styling"
+    public static final String TERMUX_STYLING_APP_NAME = "OpenClawBot:Styling"; // Default: "OpenClawBot:Styling"
     /** Termux:Styling app package name */
     public static final String TERMUX_STYLING_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".styling"; // Default: "com.termux.styling"
     /** Termux:Styling GitHub repo name */
@@ -417,7 +417,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Tasker app name */
-    public static final String TERMUX_TASKER_APP_NAME = "Termux:Tasker"; // Default: "Termux:Tasker"
+    public static final String TERMUX_TASKER_APP_NAME = "OpenClawBot:Tasker"; // Default: "OpenClawBot:Tasker"
     /** Termux:Tasker app package name */
     public static final String TERMUX_TASKER_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".tasker"; // Default: "com.termux.tasker"
     /** Termux:Tasker GitHub repo name */
@@ -431,7 +431,7 @@ public final class TermuxConstants {
 
 
     /** Termux:Widget app name */
-    public static final String TERMUX_WIDGET_APP_NAME = "Termux:Widget"; // Default: "Termux:Widget"
+    public static final String TERMUX_WIDGET_APP_NAME = "OpenClawBot:Widget"; // Default: "OpenClawBot:Widget"
     /** Termux:Widget app package name */
     public static final String TERMUX_WIDGET_PACKAGE_NAME = TERMUX_PACKAGE_NAME + ".widget"; // Default: "com.termux.widget"
     /** Termux:Widget GitHub repo name */

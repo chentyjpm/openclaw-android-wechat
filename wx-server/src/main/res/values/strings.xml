@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">OpenClawBot</string>
+    <string name="accessibility_service_name">OpenClawBot 无障碍服务</string>
 </resources>
