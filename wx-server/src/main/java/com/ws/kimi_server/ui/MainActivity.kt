@@ -19,6 +19,7 @@ import com.ws.wx_server.core.ServiceStateStore
 import com.ws.wx_server.util.Logger
 import com.ws.wx_server.util.isAccessibilityEnabled
 import com.ws.wx_server.util.openAccessibilitySettings
+import com.ws.wx_server.link.CAPTURE_STRATEGY_SCREEN_FIRST
 
 class MainActivity : AppCompatActivity() {
     private lateinit var statusText: TextView
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var recentPkgText: TextView
     private lateinit var debugSwitch: SwitchCompat
     private lateinit var debugXmlSwitch: SwitchCompat
+    private var pendingStartServiceAfterGrant = false
 
     private val accListener = AccessibilityManager.AccessibilityStateChangeListener {
         updateAccessibilityStatus()
@@ -66,6 +68,14 @@ class MainActivity : AppCompatActivity() {
         grantScreenCaptureBtn.setOnClickListener { requestScreenCapturePermission() }
 
         serviceStartBtn.setOnClickListener {
+            val cfg = com.ws.wx_server.link.LinkConfigStore.load(this)
+            if (cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
+                ScreenCapturePermissionStore.load(this) == null
+            ) {
+                pendingStartServiceAfterGrant = true
+                requestScreenCapturePermission()
+                return@setOnClickListener
+            }
             updateServiceStateUi(true)
             serverStatusText.text = "Server: connecting"
             serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_waiting)
@@ -131,7 +141,15 @@ class MainActivity : AppCompatActivity() {
             ScreenCapturePermissionStore.save(this, resultCode, data)
             Toast.makeText(this, "Screen capture permission granted", Toast.LENGTH_SHORT).show()
             Logger.i("MediaProjection permission granted", tag = "LanBotOCR")
+            if (pendingStartServiceAfterGrant) {
+                pendingStartServiceAfterGrant = false
+                updateServiceStateUi(true)
+                serverStatusText.text = "Server: connecting"
+                serverStatusIcon.setImageResource(R.drawable.kimi_ic_status_waiting)
+                CoreForegroundService.start(this)
+            }
         } else {
+            pendingStartServiceAfterGrant = false
             Toast.makeText(this, "Screen capture permission denied", Toast.LENGTH_SHORT).show()
             Logger.w("MediaProjection permission denied", tag = "LanBotOCR")
         }
