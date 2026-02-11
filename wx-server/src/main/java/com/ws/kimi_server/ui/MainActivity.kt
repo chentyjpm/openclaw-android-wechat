@@ -37,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var debugSwitch: SwitchCompat
     private lateinit var debugXmlSwitch: SwitchCompat
     private var pendingStartServiceAfterGrant = false
+    private var promptedCaptureThisResume = false
 
     private val accListener = AccessibilityManager.AccessibilityStateChangeListener {
         updateAccessibilityStatus()
@@ -72,6 +73,7 @@ class MainActivity : AppCompatActivity() {
             if (cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
                 ScreenCapturePermissionStore.load(this) == null
             ) {
+                Logger.i("Start service requires MediaProjection permission", tag = "LanBotOCR")
                 pendingStartServiceAfterGrant = true
                 requestScreenCapturePermission()
                 return@setOnClickListener
@@ -111,6 +113,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        promptedCaptureThisResume = false
         updateAccessibilityStatus()
         updateRecentPkg()
         updateServiceStateUi(ServiceStateStore.isRunning(this))
@@ -123,6 +126,7 @@ class MainActivity : AppCompatActivity() {
             sendBroadcast(i)
         } catch (_: Throwable) {
         }
+        maybePromptScreenCapturePermission()
     }
 
     override fun onDestroy() {
@@ -192,6 +196,16 @@ class MainActivity : AppCompatActivity() {
         } catch (_: Throwable) {
             Toast.makeText(this, "Failed to open permission dialog", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun maybePromptScreenCapturePermission() {
+        if (promptedCaptureThisResume) return
+        val cfg = com.ws.wx_server.link.LinkConfigStore.load(this)
+        if (cfg.captureStrategy != CAPTURE_STRATEGY_SCREEN_FIRST) return
+        if (ScreenCapturePermissionStore.load(this) != null) return
+        promptedCaptureThisResume = true
+        Logger.i("Auto requesting MediaProjection permission on resume", tag = "LanBotOCR")
+        requestScreenCapturePermission()
     }
 
     private val linkReceiver = object : BroadcastReceiver() {
