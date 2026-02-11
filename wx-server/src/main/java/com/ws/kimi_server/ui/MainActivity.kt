@@ -71,12 +71,19 @@ class MainActivity : AppCompatActivity() {
         openSettingsBtn.setOnClickListener { openAccessibilitySettings(this) }
         openServerSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         openUsageAccess.setOnClickListener { com.ws.wx_server.util.openUsageAccessSettings(this) }
-        grantScreenCaptureBtn.setOnClickListener { requestScreenCapturePermission() }
+        grantScreenCaptureBtn.setOnClickListener {
+            if (TEMP_DISABLE_CAPTURE_AND_OCR) {
+                Toast.makeText(this, "Capture/OCR temporarily disabled", Toast.LENGTH_SHORT).show()
+            } else {
+                requestScreenCapturePermission()
+            }
+        }
         enableFloatControlBtn.setOnClickListener { requestOverlayPermissionAndStartFloatControl() }
 
         serviceStartBtn.setOnClickListener {
             val cfg = com.ws.wx_server.link.LinkConfigStore.load(this)
-            if (cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
+            if (!TEMP_DISABLE_CAPTURE_AND_OCR &&
+                cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
                 ScreenCapturePermissionStore.load(this) == null
             ) {
                 Logger.i("Start service requires MediaProjection permission", tag = "LanBotOCR")
@@ -215,6 +222,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun maybePromptScreenCapturePermission() {
+        if (TEMP_DISABLE_CAPTURE_AND_OCR) return
         if (promptedCaptureThisResume) return
         val cfg = com.ws.wx_server.link.LinkConfigStore.load(this)
         if (cfg.captureStrategy != CAPTURE_STRATEGY_SCREEN_FIRST) return
@@ -293,6 +301,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     companion object {
+        private const val TEMP_DISABLE_CAPTURE_AND_OCR = true
         private const val REQUEST_SCREEN_CAPTURE = 7311
         private const val REQUEST_OVERLAY_PERMISSION = 7312
     }

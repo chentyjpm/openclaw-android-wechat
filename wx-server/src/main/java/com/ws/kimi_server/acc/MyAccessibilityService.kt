@@ -66,11 +66,16 @@ class MyAccessibilityService : AccessibilityService() {
         Logger.i("Accessibility connected")
         val cfg = com.ws.wx_server.link.LinkConfigStore.load(applicationContext)
         Logger.i("AccDebug config: events=${cfg.debugEvents} xml=${cfg.debugXml} capture=${cfg.captureStrategy}")
-        if (cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST && cfg.ocrEnabled) {
+        if (!TEMP_DISABLE_CAPTURE_AND_OCR &&
+            cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
+            cfg.ocrEnabled
+        ) {
             Thread {
                 val ok = ppOcrRecognizer.warmUp()
                 Logger.i("NCNN OCR warmup result=$ok", tag = "LanBotOCR")
             }.start()
+        } else if (TEMP_DISABLE_CAPTURE_AND_OCR) {
+            Logger.i("Capture/OCR temporarily disabled", tag = "LanBotOCR")
         }
         try {
             val i = Intent(ACTION_CONNECTED)
@@ -392,6 +397,9 @@ class MyAccessibilityService : AccessibilityService() {
         strategy: String,
         ocrEnabled: Boolean,
     ): CapturedPayload? {
+        if (TEMP_DISABLE_CAPTURE_AND_OCR) {
+            return null
+        }
         val shouldCapture = strategy == CAPTURE_STRATEGY_SCREEN_FIRST &&
             pkg == com.ws.wx_server.apps.wechat.WeChatSpec.PKG
         if (!shouldCapture) {
@@ -684,6 +692,7 @@ class MyAccessibilityService : AccessibilityService() {
     }
 
     companion object {
+        private const val TEMP_DISABLE_CAPTURE_AND_OCR = true
         private const val SNAPSHOT_THROTTLE_MS = 800L
         private const val SCREEN_CAPTURE_THROTTLE_MS = 2200L
         private const val CAPTURE_JPEG_QUALITY = 55
