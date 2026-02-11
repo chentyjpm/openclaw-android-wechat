@@ -4,6 +4,7 @@ import android.app.Application;
 import android.content.Context;
 
 import com.termux.BuildConfig;
+import com.termux.R;
 import com.termux.shared.errors.Error;
 import com.termux.shared.logger.Logger;
 import com.termux.shared.termux.TermuxBootstrap;
@@ -16,6 +17,10 @@ import com.termux.shared.termux.shell.command.environment.TermuxShellEnvironment
 import com.termux.shared.termux.shell.am.TermuxAmSocketServer;
 import com.termux.shared.termux.shell.TermuxShellManager;
 import com.termux.shared.termux.theme.TermuxThemeUtils;
+
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
 
 public class TermuxApplication extends Application {
 
@@ -59,6 +64,8 @@ public class TermuxApplication extends Application {
                 return;
             }
 
+            copyBundledOpenclawFilesForStartup();
+
             // Setup termux-am-socket server
             TermuxAmSocketServer.setupTermuxAmSocketServer(context);
         } else {
@@ -80,6 +87,41 @@ public class TermuxApplication extends Application {
         TermuxAppSharedPreferences preferences = TermuxAppSharedPreferences.build(context);
         if (preferences == null) return;
         preferences.setLogLevel(null, preferences.getLogLevel());
+    }
+
+    private void copyBundledOpenclawFilesForStartup() {
+        File termuxDataDir = new File(TermuxConstants.TERMUX_DATA_HOME_DIR_PATH);
+        if (!termuxDataDir.exists() && !termuxDataDir.mkdirs()) {
+            Logger.logWarn(LOG_TAG, "Failed to create termux data dir: " + termuxDataDir.getAbsolutePath());
+            return;
+        }
+
+        File termuxHomeDir = new File(TermuxConstants.TERMUX_HOME_DIR_PATH);
+        if (!termuxHomeDir.exists() && !termuxHomeDir.mkdirs()) {
+            Logger.logWarn(LOG_TAG, "Failed to create termux home dir: " + termuxHomeDir.getAbsolutePath());
+            return;
+        }
+
+        copyRawResourceToFile(R.raw.startup_openclaw, new File(termuxDataDir, "startup_openclaw.sh"), true);
+        copyRawResourceToFile(R.raw.openclaw_wechatui_channel, new File(termuxHomeDir, "openclaw-wechatui-channel.tar"), false);
+    }
+
+    private void copyRawResourceToFile(int rawResId, File target, boolean executable) {
+        try (InputStream in = getResources().openRawResource(rawResId);
+             FileOutputStream out = new FileOutputStream(target, false)) {
+            byte[] buffer = new byte[8192];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                out.write(buffer, 0, read);
+            }
+            if (executable) {
+                //noinspection ResultOfMethodCallIgnored
+                target.setExecutable(true, false);
+            }
+            Logger.logInfo(LOG_TAG, "Copied bundled file to " + target.getAbsolutePath());
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to copy bundled file to " + target.getAbsolutePath(), e);
+        }
     }
 
 }
