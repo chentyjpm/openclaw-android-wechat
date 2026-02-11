@@ -422,6 +422,15 @@ install_wechat_plugin() {
         echo -e "${RED}Error: failed to link global openclaw dependency${NC}"
         exit 1
     fi
+    if [ ! -L "$PLUGIN_EXTRACT_DIR/node_modules/openclaw" ]; then
+        log "openclaw link verification failed: not a symlink at $PLUGIN_EXTRACT_DIR/node_modules/openclaw"
+        echo -e "${RED}Error: openclaw dependency is not a symlink after link step${NC}"
+        exit 1
+    fi
+    OPENCLAW_LINK_TARGET=$(readlink "$PLUGIN_EXTRACT_DIR/node_modules/openclaw" 2>/dev/null || true)
+    OPENCLAW_LINK_REAL=$(readlink -f "$PLUGIN_EXTRACT_DIR/node_modules/openclaw" 2>/dev/null || true)
+    log "openclaw symlink created: $PLUGIN_EXTRACT_DIR/node_modules/openclaw -> $OPENCLAW_LINK_TARGET (real=$OPENCLAW_LINK_REAL)"
+    echo -e "${GREEN}openclaw symlink: $PLUGIN_EXTRACT_DIR/node_modules/openclaw -> $OPENCLAW_LINK_TARGET${NC}"
 
     # If plugin is already registered, skip re-running plugin install command.
     if env PATH="$NPM_BIN:$PATH" "$OPENCLAW_CMD" plugins list 2>/dev/null | grep -Eq "(^|[[:space:]])$PLUGIN_NAME([[:space:]]|$)"; then
