@@ -362,6 +362,17 @@ class MyAccessibilityService : AccessibilityService() {
                 .put("added_contents", org.json.JSONArray().apply { addedContents.forEach { put(it) } })
             val deltaString = delta.toString()
             logLong("LanBotTabScan", "TabScan delta: ", deltaString)
+            if (addedContents.isEmpty()) {
+                Logger.i("TabScan added contents: <NONE>", tag = "LanBotTabScan")
+            } else {
+                addedContents.forEachIndexed { index, content ->
+                    logLong(
+                        tag = "LanBotTabScan",
+                        prefix = "TabScan added[${index + 1}/${addedContents.size}]: ",
+                        text = content,
+                    )
+                }
+            }
             tabScanLastDeltaFile = saveTabScanDeltaToSdcard(deltaString)
             Logger.i("TabScan delta file: ${tabScanLastDeltaFile ?: "<failed>"}", tag = "LanBotTabScan")
         } else {
