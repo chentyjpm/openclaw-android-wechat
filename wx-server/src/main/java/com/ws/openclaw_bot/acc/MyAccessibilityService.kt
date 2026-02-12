@@ -7,9 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -27,8 +24,6 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
-import java.io.File
-import java.io.FileOutputStream
 import java.util.concurrent.Executors
 import kotlin.math.max
 
@@ -56,8 +51,6 @@ class MyAccessibilityService : AccessibilityService() {
     private var tabScanChangedCycleCount = 0
     private var tabScanPreviousDescList: List<String> = emptyList()
     private var tabScanBaselineInitialized = false
-    private var tabScanLastCycleFile: String? = null
-    private var tabScanLastDeltaFile: String? = null
     private var tabScanTicker: Runnable? = null
     private val tabScanPushExecutor = Executors.newSingleThreadExecutor()
     private val tabScanPushClient = OkHttpClient()
@@ -228,8 +221,6 @@ class MyAccessibilityService : AccessibilityService() {
         tabScanChangedCycleCount = 0
         tabScanPreviousDescList = emptyList()
         tabScanBaselineInitialized = false
-        tabScanLastCycleFile = null
-        tabScanLastDeltaFile = null
         tabScanRecentSentCache.clear()
         Logger.i("TabScan started: loop mode, stepping TAB via IME every 250ms", tag = "LanBotTabScan")
         if (!LanBotImeService.isServiceActive()) {
@@ -258,15 +249,12 @@ class MyAccessibilityService : AccessibilityService() {
             .put("elapsed_ms", (System.currentTimeMillis() - tabScanSessionStartedAt).coerceAtLeast(0L))
             .put("cycles", tabScanCycleIndex)
             .put("changed_cycles", tabScanChangedCycleCount)
-            .put("last_cycle_file", tabScanLastCycleFile.orEmpty())
-            .put("last_delta_file", tabScanLastDeltaFile.orEmpty())
         val summaryString = summary.toString()
         logLong("LanBotTabScan", "TabScan session done: ", summaryString)
         try {
             sendBroadcast(Intent(ACTION_TAB_SCAN_DONE).apply {
                 setPackage(packageName)
                 putExtra(EXTRA_TAB_SCAN_JSON, summaryString)
-                putExtra(EXTRA_TAB_SCAN_FILE, tabScanLastCycleFile.orEmpty())
             })
         } catch (_: Throwable) {
         }
@@ -446,13 +434,6 @@ class MyAccessibilityService : AccessibilityService() {
             .put("target_events", org.json.JSONArray().apply { tabScanTargetEvents.forEach { put(it) } })
         val cycleString = cycle.toString()
         logLong("LanBotTabScan", "TabScan cycle result: ", cycleString)
-        val cyclePath = saveTabScanResultToInternalFile(cycleString)
-        tabScanLastCycleFile = cyclePath
-        if (cyclePath != null) {
-            Logger.i("TabScan cycle file: $cyclePath", tag = "LanBotTabScan")
-        } else {
-            Logger.i("TabScan cycle file saving disabled", tag = "LanBotTabScan")
-        }
         if (segment == null) {
             Logger.w(
                 "TabScan segment not found: start=LinearLayout end=ImageButton(${TAB_SCAN_SEGMENT_END_MARKER})",
@@ -506,12 +487,6 @@ class MyAccessibilityService : AccessibilityService() {
                     )
                 }
                 pushAddedMessagesToClientPush(pushDescList, segment)
-            }
-            tabScanLastDeltaFile = saveTabScanDeltaToInternalFile(deltaString)
-            if (tabScanLastDeltaFile != null) {
-                Logger.i("TabScan delta file: ${tabScanLastDeltaFile}", tag = "LanBotTabScan")
-            } else {
-                Logger.i("TabScan delta file saving disabled", tag = "LanBotTabScan")
             }
         } else {
             Logger.i("TabScan cycle #$tabScanCycleIndex unchanged", tag = "LanBotTabScan")
@@ -772,32 +747,6 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun saveTabScanResultToInternalFile(content: String): String? {
-        if (!SAVE_TABSCAN_DEBUG_FILES) return null
-        return try {
-            val dir = File(applicationContext.filesDir, DEBUG_FILES_DIR_NAME)
-            if (!dir.exists() && !dir.mkdirs()) return null
-            val file = File(dir, "tab_scan_cycle_${tabScanCycleIndex}_${System.currentTimeMillis()}.json")
-            file.writeText(content)
-            file.absolutePath
-        } catch (_: Throwable) {
-            null
-        }
-    }
-
-    private fun saveTabScanDeltaToInternalFile(content: String): String? {
-        if (!SAVE_TABSCAN_DEBUG_FILES) return null
-        return try {
-            val dir = File(applicationContext.filesDir, DEBUG_FILES_DIR_NAME)
-            if (!dir.exists() && !dir.mkdirs()) return null
-            val file = File(dir, "tab_scan_delta_${tabScanCycleIndex}_${System.currentTimeMillis()}.json")
-            file.writeText(content)
-            file.absolutePath
-        } catch (_: Throwable) {
-            null
-        }
-    }
-
     private data class SnapshotResult(val status: SnapshotStatus, val retryDelayMs: Long = 0L)
 
     private enum class SnapshotStatus { SENT, THROTTLED }
@@ -947,11 +896,9 @@ class MyAccessibilityService : AccessibilityService() {
             source.recycle()
             return null
         }
-        val overlayJpeg = buildOverlayJpeg(scaled, ocrPayload)
         if (scaled !== source) scaled.recycle()
         source.recycle()
         val bytes = out.toByteArray()
-        saveOcrCaptureToInternalFile(bytes, overlayJpeg, ocrText)
         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
         return CapturedFrame(
             mode = mode,
@@ -1017,87 +964,6 @@ class MyAccessibilityService : AccessibilityService() {
         return Bitmap.createScaledBitmap(source, dstWidth, dstHeight, true)
     }
 
-    private fun buildOverlayJpeg(
-        base: Bitmap,
-        ocrPayload: TaskBridge.OcrPayloadData?,
-    ): ByteArray? {
-        val lines = ocrPayload?.lines.orEmpty()
-        if (lines.isEmpty()) return null
-        return try {
-            val overlay = base.copy(Bitmap.Config.ARGB_8888, true) ?: return null
-            val canvas = Canvas(overlay)
-            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.STROKE
-                color = Color.argb(255, 0, 255, 80)
-                strokeWidth = (overlay.width / 320f).coerceAtLeast(2f)
-            }
-            val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.FILL
-                color = Color.argb(255, 255, 208, 0)
-                textSize = (overlay.width / 38f).coerceAtLeast(20f)
-            }
-            val textBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                style = Paint.Style.FILL
-                color = Color.argb(150, 0, 0, 0)
-            }
-            for (line in lines) {
-                val quad = line.quad
-                if (quad.size >= 4) {
-                    for (i in quad.indices) {
-                        val p1 = quad[i]
-                        val p2 = quad[(i + 1) % quad.size]
-                        canvas.drawLine(p1.x, p1.y, p2.x, p2.y, strokePaint)
-                    }
-                }
-                val label = "${line.text} (${String.format(java.util.Locale.US, "%.2f", line.prob)})"
-                val textX = line.left.coerceAtLeast(0f)
-                val textY = (line.top - 8f).coerceAtLeast(textPaint.textSize + 4f)
-                val textW = textPaint.measureText(label)
-                val pad = 6f
-                canvas.drawRect(
-                    textX - pad,
-                    textY - textPaint.textSize - pad,
-                    textX + textW + pad,
-                    textY + pad,
-                    textBgPaint,
-                )
-                canvas.drawText(label, textX, textY, textPaint)
-            }
-            val out = ByteArrayOutputStream()
-            if (!overlay.compress(Bitmap.CompressFormat.JPEG, CAPTURE_JPEG_QUALITY, out)) {
-                overlay.recycle()
-                return null
-            }
-            overlay.recycle()
-            out.toByteArray()
-        } catch (_: Throwable) {
-            null
-        }
-    }
-
-    private fun saveOcrCaptureToInternalFile(jpeg: ByteArray, overlayJpeg: ByteArray?, text: String) {
-        if (!SAVE_CAPTURE_DEBUG_FILES) return
-        try {
-            val dir = File(applicationContext.filesDir, DEBUG_FILES_DIR_NAME)
-            if (!dir.exists() && !dir.mkdirs()) {
-                Logger.w("OCR save failed: cannot mkdir ${dir.absolutePath}", tag = "LanBotOCR")
-                return
-            }
-            val ts = System.currentTimeMillis()
-            val imgFile = File(dir, "ocr_${ts}.jpg")
-            FileOutputStream(imgFile).use { it.write(jpeg) }
-            if (overlayJpeg != null) {
-                val overlayFile = File(dir, "ocr_${ts}_overlay.jpg")
-                FileOutputStream(overlayFile).use { it.write(overlayJpeg) }
-            }
-            val txtFile = File(dir, "ocr_${ts}.txt")
-            txtFile.writeText(text.ifBlank { "<EMPTY>" })
-            Logger.i("OCR saved: ${imgFile.absolutePath}", tag = "LanBotOCR")
-        } catch (t: Throwable) {
-            Logger.w("OCR save exception: ${t.message}", tag = "LanBotOCR")
-        }
-    }
-
     private fun maybeLogOcrTextChange(text: String) {
         val normalized = text.trim()
         if (normalized == lastLoggedOcrText) return
@@ -1161,9 +1027,6 @@ class MyAccessibilityService : AccessibilityService() {
         private const val SCREEN_CAPTURE_THROTTLE_MS = 2200L
         private const val CAPTURE_JPEG_QUALITY = 55
         private const val CAPTURE_MAX_WIDTH = 960
-        private const val SAVE_CAPTURE_DEBUG_FILES = false
-        private const val SAVE_TABSCAN_DEBUG_FILES = false
-        private const val DEBUG_FILES_DIR_NAME = "ocr_debug"
         private const val LOGCAT_CHUNK_SIZE = 2800
         private const val TAB_SCAN_INTERVAL_MS = 250L
         private const val TAB_SCAN_SENT_CACHE_MAX = 200
@@ -1192,7 +1055,6 @@ class MyAccessibilityService : AccessibilityService() {
         const val EXTRA_CAPTURE_JSON = "capture_json"
         const val EXTRA_OCR_JSON = "ocr_json"
         const val EXTRA_TAB_SCAN_JSON = "tab_scan_json"
-        const val EXTRA_TAB_SCAN_FILE = "tab_scan_file"
         const val EXTRA_OUTBOUND_TEXT = "outbound_text"
     }
 }
