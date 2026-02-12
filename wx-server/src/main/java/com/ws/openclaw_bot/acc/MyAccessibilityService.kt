@@ -453,9 +453,16 @@ class MyAccessibilityService : AccessibilityService() {
 
         if (changed) {
             tabScanChangedCycleCount += 1
-            val filtered = filterOutboundEchoFromAdded(addedDescList)
-            val pushDescList = filtered.forward
-            val suppressedDescList = filtered.suppressed
+            val cfg = com.ws.wx_server.link.LinkConfigStore.load(baseContext)
+            val echoFiltered = filterOutboundEchoFromAdded(addedDescList)
+            val keywordFiltered = filterTabScanForwardKeyword(echoFiltered.forward, cfg.tabScanForwardFilterKeyword)
+            val pushDescList = keywordFiltered.forward
+            val suppressedDescList = ArrayList<String>(
+                echoFiltered.suppressed.size + keywordFiltered.suppressed.size,
+            ).apply {
+                addAll(echoFiltered.suppressed)
+                addAll(keywordFiltered.suppressed)
+            }
             val delta = org.json.JSONObject()
                 .put("cycle", tabScanCycleIndex)
                 .put("segment_found", segment != null)
@@ -549,6 +556,30 @@ class MyAccessibilityService : AccessibilityService() {
             if (consumeRecentSentEcho(text)) {
                 suppressed.add(text)
             } else if (keywordEnabled && !text.contains(requiredKeyword)) {
+                suppressed.add(text)
+            } else {
+                forward.add(text)
+            }
+        }
+        return AddedFilterResult(forward = forward, suppressed = suppressed)
+    }
+
+    private fun filterTabScanForwardKeyword(
+        added: List<String>,
+        rawKeywordConfig: String,
+    ): AddedFilterResult {
+        if (added.isEmpty()) return AddedFilterResult(emptyList(), emptyList())
+        val keywords = rawKeywordConfig
+            .split(',', '\n', '\r')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+        if (keywords.isEmpty()) return AddedFilterResult(added, emptyList())
+
+        val forward = ArrayList<String>(added.size)
+        val suppressed = ArrayList<String>()
+        added.forEach { text ->
+            val blocked = keywords.any { keyword -> text.contains(keyword, ignoreCase = true) }
+            if (blocked) {
                 suppressed.add(text)
             } else {
                 forward.add(text)

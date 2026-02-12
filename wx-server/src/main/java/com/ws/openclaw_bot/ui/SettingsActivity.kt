@@ -19,6 +19,7 @@ class SettingsActivity : AppCompatActivity() {
         val host = findViewById<EditText>(R.id.et_host)
         val port = findViewById<EditText>(R.id.et_port)
         val keepAlive = findViewById<EditText>(R.id.et_keepalive)
+        val tabScanForwardFilterKeyword = findViewById<EditText>(R.id.et_tabscan_forward_filter_keyword)
         val tls = findViewById<CheckBox>(R.id.cb_tls)
         val debug = findViewById<CheckBox>(R.id.cb_debug)
         val debugXml = findViewById<CheckBox>(R.id.cb_debug_xml)
@@ -31,6 +32,7 @@ class SettingsActivity : AppCompatActivity() {
         host.setText(cfg.host)
         port.setText(cfg.port.toString())
         keepAlive.setText(cfg.keepAliveSeconds.toString())
+        tabScanForwardFilterKeyword.setText(cfg.tabScanForwardFilterKeyword)
         tls.isChecked = cfg.useTls
         debug.isChecked = cfg.debugEvents
         debugXml.isChecked = cfg.debugXml
@@ -46,6 +48,7 @@ class SettingsActivity : AppCompatActivity() {
                 host = host.text.toString().ifBlank { cfg.host },
                 port = p,
                 keepAliveSeconds = keepAliveSeconds,
+                tabScanForwardFilterKeyword = tabScanForwardFilterKeyword.text.toString().trim(),
                 useTls = tls.isChecked,
                 debugEvents = debug.isChecked,
                 debugXml = debugXml.isChecked,

@@ -48,13 +48,13 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="TabScan 转发过滤关键词" />
+            android:text="TabScan Forward Filter Keyword(s)" />
 
         <EditText
-            android:id="@+id/et_tabscan_keyword"
+            android:id="@+id/et_tabscan_forward_filter_keyword"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="@龙虾钳（留空不过滤）"
+            android:hint="Default: empty"
             android:inputType="text" />
 
         <CheckBox
