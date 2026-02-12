@@ -128,6 +128,49 @@ pkg_install_cmd() {
     esac
 }
 
+append_path_export_line() {
+    local file="$1"
+    local line="export PATH=\"$NPM_BIN:\$PATH\""
+    [ -f "$file" ] || run_cmd touch "$file"
+    grep -qxF "$line" "$file" || echo "$line" >> "$file"
+}
+
+ensure_openclaw_command() {
+    local openclaw_bin="$NPM_BIN/openclaw"
+    local prefix_bin=""
+    if [ -n "${PREFIX:-}" ]; then
+        prefix_bin="$PREFIX/bin"
+    elif [ -d "/data/data/com.termux/files/usr/bin" ]; then
+        prefix_bin="/data/data/com.termux/files/usr/bin"
+    fi
+
+    # Ensure current process can resolve openclaw immediately.
+    export PATH="$NPM_BIN:$PATH"
+    hash -r 2>/dev/null || true
+
+    # Persist PATH for common startup files.
+    append_path_export_line "$BASHRC"
+    append_path_export_line "$HOME/.profile"
+    if [ -f "$HOME/.zshrc" ]; then
+        append_path_export_line "$HOME/.zshrc"
+    fi
+
+    # Some launch modes ignore shell rc files. Provide a direct executable path fallback.
+    if [ -x "$openclaw_bin" ] && [ -n "$prefix_bin" ] && [ -d "$prefix_bin" ]; then
+        run_cmd ln -sfn "$openclaw_bin" "$prefix_bin/openclaw"
+    fi
+
+    hash -r 2>/dev/null || true
+    if ! command -v openclaw >/dev/null 2>&1; then
+        log "openclaw command not found after install; expected binary: $openclaw_bin"
+        echo -e "${RED}Error: openclaw command is not available after installation${NC}"
+        echo -e "${YELLOW}Expected path: $openclaw_bin${NC}"
+        exit 1
+    fi
+    log "openclaw command available: $(command -v openclaw)"
+    echo -e "${GREEN}openclaw command ready: $(command -v openclaw)${NC}"
+}
+
 check_deps() {
     # Check and install basic dependencies
     log "Checking base environment"
@@ -259,7 +302,11 @@ configure_npm() {
         echo -e "${RED}Error: failed to set NPM prefix${NC}"
         exit 1
     fi
-    grep -qxF "export PATH=$NPM_BIN:$PATH" "$BASHRC" || echo "export PATH=$NPM_BIN:$PATH" >> "$BASHRC"
+    append_path_export_line "$BASHRC"
+    append_path_export_line "$HOME/.profile"
+    if [ -f "$HOME/.zshrc" ]; then
+        append_path_export_line "$HOME/.zshrc"
+    fi
     export PATH="$NPM_BIN:$PATH"
 
     # Create required directories for Termux compatibility
@@ -358,6 +405,7 @@ configure_npm() {
         echo -e "${GREEN}Openclaw installed (version: $INSTALLED_VERSION)${NC}"
     fi
 
+    ensure_openclaw_command
     BASE_DIR="$NPM_GLOBAL/lib/node_modules/openclaw"
 }
 
@@ -551,7 +599,7 @@ setup_autostart() {
 export TERMUX_VERSION=1
 export TMPDIR=\$HOME/tmp
 export OPENCLAW_GATEWAY_TOKEN=$TOKEN
-export PATH=\$NPM_BIN:\$PATH
+export PATH=$NPM_BIN:\$PATH
 sshd 2>/dev/null
 termux-wake-lock 2>/dev/null
 alias ocr="pkill -9 -f 'openclaw' 2>/dev/null; tmux kill-session -t openclaw 2>/dev/null; sleep 1; tmux new -d -s openclaw; sleep 1; tmux send-keys -t openclaw \"export PATH=$NPM_BIN:\$PATH TMPDIR=\$HOME/tmp; export OPENCLAW_GATEWAY_TOKEN=$TOKEN; openclaw gateway --bind lan --port $PORT --token \\\$OPENCLAW_GATEWAY_TOKEN --allow-unconfigured\" C-m"
