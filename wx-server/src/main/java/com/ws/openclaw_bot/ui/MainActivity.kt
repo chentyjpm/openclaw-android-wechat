@@ -84,7 +84,7 @@ open class MainActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
             updateServiceStateUi(true)
-            serverStatusText.text = "Server: connecting"
+            serverStatusText.text = "OpenClaw服务: 连接中"
             serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_waiting)
             CoreForegroundService.start(this)
         }
@@ -92,7 +92,7 @@ open class MainActivity : AppCompatActivity() {
         serviceStopBtn.setOnClickListener {
             updateServiceStateUi(false)
             CoreForegroundService.stop(this)
-            serverStatusText.text = "Server: disconnected"
+            serverStatusText.text = "OpenClaw服务: 未连接"
             serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
         }
 
@@ -139,7 +139,7 @@ open class MainActivity : AppCompatActivity() {
                 if (pendingStartServiceAfterGrant) {
                     pendingStartServiceAfterGrant = false
                     updateServiceStateUi(true)
-                    serverStatusText.text = "Server: connecting"
+                    serverStatusText.text = "OpenClaw服务: 连接中"
                     serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_waiting)
                     CoreForegroundService.start(this)
                 }
@@ -167,14 +167,14 @@ open class MainActivity : AppCompatActivity() {
     }
 
     private fun updateServiceStateUi(running: Boolean) {
-        serviceStateText.text = if (running) "Foreground service: running" else "Foreground service: stopped"
+        serviceStateText.text = if (running) "前台服务: 运行中" else "前台服务: 已停止"
         serviceStatusIcon.setImageResource(
             if (running) R.drawable.openclaw_ic_status_on else R.drawable.openclaw_ic_status_off
         )
         serviceStartBtn.isEnabled = !running
         serviceStopBtn.isEnabled = running
         if (!running) {
-            serverStatusText.text = "Server: disconnected"
+            serverStatusText.text = "OpenClaw服务: 未连接"
             serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
         }
     }
@@ -286,19 +286,19 @@ open class MainActivity : AppCompatActivity() {
             val state = intent?.getStringExtra(CoreForegroundService.EXTRA_STATE) ?: return
             when (state) {
                 "connecting" -> {
-                    serverStatusText.text = "Server: connecting"
+                    serverStatusText.text = "OpenClaw服务: 连接中"
                     serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_waiting)
                 }
                 "connected" -> {
-                    serverStatusText.text = "Server: connected"
+                    serverStatusText.text = "OpenClaw服务: 已连接"
                     serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_on)
                 }
                 "disconnected" -> {
-                    serverStatusText.text = "Server: disconnected"
+                    serverStatusText.text = "OpenClaw服务: 未连接"
                     serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
                 }
                 "failed" -> {
-                    serverStatusText.text = "Server: failed"
+                    serverStatusText.text = "OpenClaw服务: 连接失败"
                     serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
                 }
             }

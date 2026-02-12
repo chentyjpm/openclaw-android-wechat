@@ -85,7 +85,7 @@
                 android:id="@+id/tv_server_status"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Server: disconnected"
+                android:text="OpenClaw服务: 未连接"
                 android:textSize="16sp" />
         </LinearLayout>
 
@@ -107,7 +107,7 @@
                 android:id="@+id/tv_service_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Foreground service: stopped"
+                android:text="前台服务: 已停止"
                 android:textSize="16sp" />
         </LinearLayout>
 
