@@ -30,7 +30,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # sdkmanager may close stdin early after reading enough "y", which makes
+          # `yes` exit with SIGPIPE. Temporarily disable pipefail for this command.
+          set +o pipefail
           yes | sdkmanager --licenses > /dev/null
+          set -o pipefail
           NDK_VERSION="$(grep -m1 '^ndkVersion=' gradle.properties | cut -d'=' -f2)"
           sdkmanager "ndk;${NDK_VERSION}"
 
