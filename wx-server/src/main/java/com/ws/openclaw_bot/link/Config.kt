@@ -9,6 +9,7 @@ const val CAPTURE_STRATEGY_NODE_ONLY = "node_only"
 data class ServerConfig(
     val host: String = "127.0.0.1",
     val port: Int = 18789,
+    val openclawToken: String = "",
     val keepAliveSeconds: Int = 60,
     val tabScanForwardFilterKeyword: String = "",
     val useTls: Boolean = false,
@@ -23,6 +24,7 @@ object LinkConfigStore {
     private const val PREFS = "lanbot_cfg"
     private const val K_HOST = "host"
     private const val K_PORT = "port"
+    private const val K_OPENCLAW_TOKEN = "openclaw_token"
     private const val K_KEEPALIVE = "keepalive_seconds"
     private const val K_TABSCAN_FORWARD_FILTER_KEYWORD = "tabscan_forward_filter_keyword"
     private const val K_TLS = "tls"
@@ -38,6 +40,7 @@ object LinkConfigStore {
         return ServerConfig(
             host = sp.getString(K_HOST, null) ?: def.host,
             port = sp.getInt(K_PORT, def.port),
+            openclawToken = sp.getString(K_OPENCLAW_TOKEN, def.openclawToken) ?: def.openclawToken,
             keepAliveSeconds = sp.getInt(K_KEEPALIVE, def.keepAliveSeconds),
             tabScanForwardFilterKeyword = sp.getString(
                 K_TABSCAN_FORWARD_FILTER_KEYWORD,
@@ -59,6 +62,7 @@ object LinkConfigStore {
         prefs(ctx).edit()
             .putString(K_HOST, cfg.host)
             .putInt(K_PORT, cfg.port)
+            .putString(K_OPENCLAW_TOKEN, cfg.openclawToken)
             .putInt(K_KEEPALIVE, cfg.keepAliveSeconds)
             .putString(K_TABSCAN_FORWARD_FILTER_KEYWORD, cfg.tabScanForwardFilterKeyword)
             .putBoolean(K_TLS, cfg.useTls)

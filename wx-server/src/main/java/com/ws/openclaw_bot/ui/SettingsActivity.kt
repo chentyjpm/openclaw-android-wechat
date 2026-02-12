@@ -18,6 +18,7 @@ class SettingsActivity : AppCompatActivity() {
 
         val host = findViewById<EditText>(R.id.et_host)
         val port = findViewById<EditText>(R.id.et_port)
+        val openclawToken = findViewById<EditText>(R.id.et_openclaw_token)
         val keepAlive = findViewById<EditText>(R.id.et_keepalive)
         val tabScanForwardFilterKeyword = findViewById<EditText>(R.id.et_tabscan_forward_filter_keyword)
         val tls = findViewById<CheckBox>(R.id.cb_tls)
@@ -31,6 +32,7 @@ class SettingsActivity : AppCompatActivity() {
         val cfg = LinkConfigStore.load(this)
         host.setText(cfg.host)
         port.setText(cfg.port.toString())
+        openclawToken.setText(cfg.openclawToken)
         keepAlive.setText(cfg.keepAliveSeconds.toString())
         tabScanForwardFilterKeyword.setText(cfg.tabScanForwardFilterKeyword)
         tls.isChecked = cfg.useTls
@@ -47,6 +49,7 @@ class SettingsActivity : AppCompatActivity() {
             val newCfg = ServerConfig(
                 host = host.text.toString().ifBlank { cfg.host },
                 port = p,
+                openclawToken = openclawToken.text.toString().trim(),
                 keepAliveSeconds = keepAliveSeconds,
                 tabScanForwardFilterKeyword = tabScanForwardFilterKeyword.text.toString().trim(),
                 useTls = tls.isChecked,

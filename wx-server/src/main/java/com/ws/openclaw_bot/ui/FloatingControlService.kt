@@ -390,9 +390,9 @@ class FloatingControlService : Service() {
         val reqId = nextWsReqId("connect")
         val authToken = resolveGatewayToken()
         if (authToken.isNullOrBlank()) {
-            appendLog("token not found in termux profile; connect may be rejected")
+            appendLog("openclaw token is empty; connect may be rejected")
         } else {
-            appendLog("token loaded from termux profile")
+            appendLog("openclaw token loaded")
         }
 
         val connectParams = JSONObject()
@@ -566,6 +566,11 @@ class FloatingControlService : Service() {
     }
 
     private fun resolveGatewayToken(): String? {
+        val configToken = LinkConfigStore.load(applicationContext).openclawToken.trim()
+        if (configToken.isNotEmpty()) {
+            return configToken
+        }
+
         val files = linkedSetOf<File>()
         val appHome = File(applicationInfo.dataDir, "files/home")
         files.add(File(appHome, ".bashrc"))
