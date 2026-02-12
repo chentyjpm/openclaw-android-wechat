@@ -41,6 +41,32 @@ OpenClawBot Android 是一个基于 Termux 的移动端自动化方案：
 - 支持调取更多手机硬件能力。
 - 支持调用摄像头拍照。
 
+## 安装和使用
+
+### 1. 安装界面
+
+![安装界面](img/install.png)
+
+### 2. 主页界面
+
+![主页界面](img/mainscr.png)
+
+### 3. 输入法设置
+
+![输入法设置](img/keyboard.png)
+
+### 4. 前台服务状态
+
+![前台服务状态](img/frsvc.png)
+
+### 5. 运行界面
+
+![运行界面](img/run.png)
+
+### 6. 全流程示意
+
+![全流程示意](img/fullrun.png)
+
 ## 参考项目与致谢
 
 - https://github.com/termux/termux-app
