@@ -23,6 +23,17 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK licenses and install NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          yes | sdkmanager --licenses > /dev/null
+          NDK_VERSION="$(grep -m1 '^ndkVersion=' gradle.properties | cut -d'=' -f2)"
+          sdkmanager "ndk;${NDK_VERSION}"
+
       - name: Ensure gradlew is executable
         run: chmod +x ./gradlew
 
