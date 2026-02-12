@@ -6,7 +6,7 @@
     <string name="openclaw_btn_usage_access">打开使用情况访问权限</string>
     <string name="openclaw_btn_open_accessibility">开启无障碍服务</string>
     <string name="openclaw_btn_keyboard_settings">打开键盘设置</string>
-    <string name="openclaw_btn_pick_ime">选择 LanBot 键盘</string>
+    <string name="openclaw_btn_pick_ime">选择OpenClawBot输入法</string>
     <string name="openclaw_btn_service_start">启动服务</string>
     <string name="openclaw_btn_service_stop">停止服务</string>
     <string name="openclaw_ime_subtype_label">OpenClaw Keyboard</string>
