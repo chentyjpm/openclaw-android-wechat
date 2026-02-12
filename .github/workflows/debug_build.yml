@@ -9,6 +9,9 @@ on:
     branches:
       - master
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -103,3 +106,34 @@ jobs:
             ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_*.apk
             ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_sha256sums
             ${{ env.APK_DIR_PATH }}/output-metadata.json
+
+      - name: Publish direct APK files to GitHub Release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          TAG="latest-build"
+          TITLE="Latest Build APKs"
+          NOTES="Auto-updated by CI from commit ${GITHUB_SHA::7}"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release edit "$TAG" --title "$TITLE" --notes "$NOTES"
+          else
+            gh release create "$TAG" --title "$TITLE" --notes "$NOTES"
+          fi
+
+          TMP_DIR="$(mktemp -d)"
+          for apk in "${APK_DIR_PATH}/${APK_BASENAME_PREFIX}_"*.apk; do
+            abi="$(basename "$apk" | sed -E "s/^${APK_BASENAME_PREFIX}_//")"
+            cp "$apk" "${TMP_DIR}/openclawbot-${abi}"
+          done
+
+          (
+            cd "$TMP_DIR"
+            sha256sum openclawbot-*.apk > openclawbot-sha256sums.txt
+          )
+
+          gh release upload "$TAG" "${TMP_DIR}"/openclawbot-*.apk "${TMP_DIR}/openclawbot-sha256sums.txt" --clobber
