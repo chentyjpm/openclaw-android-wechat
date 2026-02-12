@@ -17,6 +17,7 @@ import com.ws.wx_server.debug.AccessibilityDebug
 import com.ws.wx_server.exec.TaskBridge
 import com.ws.wx_server.ime.LanBotImeService
 import com.ws.wx_server.link.CAPTURE_STRATEGY_SCREEN_FIRST
+import com.ws.wx_server.link.LinkConfigStore
 import com.ws.wx_server.ocr.PPOcrRecognizer
 import com.ws.wx_server.util.Logger
 import okhttp3.MediaType.Companion.toMediaType
@@ -542,8 +543,12 @@ class MyAccessibilityService : AccessibilityService() {
         pruneExpiredSentEcho()
         val forward = ArrayList<String>(added.size)
         val suppressed = ArrayList<String>()
+        val requiredKeyword = LinkConfigStore.load(applicationContext).tabScanForwardKeyword.trim()
+        val keywordEnabled = requiredKeyword.isNotEmpty()
         added.forEach { text ->
             if (consumeRecentSentEcho(text)) {
+                suppressed.add(text)
+            } else if (keywordEnabled && !text.contains(requiredKeyword)) {
                 suppressed.add(text)
             } else {
                 forward.add(text)

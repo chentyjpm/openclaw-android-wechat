@@ -45,6 +45,18 @@
             android:hint="60"
             android:inputType="number" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TabScan 转发过滤关键词" />
+
+        <EditText
+            android:id="@+id/et_tabscan_keyword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@龙虾钳（留空不过滤）"
+            android:inputType="text" />
+
         <CheckBox
             android:id="@+id/cb_tls"
             android:layout_width="wrap_content"

@@ -24,6 +24,7 @@ class SettingsActivity : AppCompatActivity() {
         val debugXml = findViewById<CheckBox>(R.id.cb_debug_xml)
         val captureScreen = findViewById<CheckBox>(R.id.cb_capture_screen)
         val ocrEnabled = findViewById<CheckBox>(R.id.cb_ocr_enabled)
+        val tabScanKeyword = findViewById<EditText>(R.id.et_tabscan_keyword)
         val save = findViewById<Button>(R.id.btn_save)
 
         val cfg = LinkConfigStore.load(this)
@@ -35,6 +36,7 @@ class SettingsActivity : AppCompatActivity() {
         debugXml.isChecked = cfg.debugXml
         captureScreen.isChecked = cfg.captureStrategy == CAPTURE_STRATEGY_SCREEN_FIRST
         ocrEnabled.isChecked = cfg.ocrEnabled
+        tabScanKeyword.setText(cfg.tabScanForwardKeyword)
 
         save.setOnClickListener {
             val p = port.text.toString().toIntOrNull() ?: cfg.port
@@ -49,6 +51,7 @@ class SettingsActivity : AppCompatActivity() {
                 debugXml = debugXml.isChecked,
                 captureStrategy = if (captureScreen.isChecked) CAPTURE_STRATEGY_SCREEN_FIRST else CAPTURE_STRATEGY_NODE_ONLY,
                 ocrEnabled = ocrEnabled.isChecked,
+                tabScanForwardKeyword = tabScanKeyword.text.toString().trim(),
             )
             LinkConfigStore.save(this, newCfg)
             finish()

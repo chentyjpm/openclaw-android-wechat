@@ -15,6 +15,7 @@ data class ServerConfig(
     val debugXml: Boolean = false,
     val captureStrategy: String = CAPTURE_STRATEGY_SCREEN_FIRST,
     val ocrEnabled: Boolean = true,
+    val tabScanForwardKeyword: String = "@龙虾钳",
 )
 
 object LinkConfigStore {
@@ -27,6 +28,7 @@ object LinkConfigStore {
     private const val K_DEBUG_XML = "debug_xml"
     private const val K_CAPTURE_STRATEGY = "capture_strategy"
     private const val K_OCR_ENABLED = "ocr_enabled"
+    private const val K_TABSCAN_FORWARD_KEYWORD = "tabscan_forward_keyword"
 
     fun load(ctx: Context): ServerConfig {
         val sp = prefs(ctx)
@@ -42,6 +44,8 @@ object LinkConfigStore {
                 ?.takeIf { it == CAPTURE_STRATEGY_SCREEN_FIRST || it == CAPTURE_STRATEGY_NODE_ONLY }
                 ?: def.captureStrategy,
             ocrEnabled = sp.getBoolean(K_OCR_ENABLED, def.ocrEnabled),
+            tabScanForwardKeyword = sp.getString(K_TABSCAN_FORWARD_KEYWORD, def.tabScanForwardKeyword)
+                ?: def.tabScanForwardKeyword,
         )
     }
 
@@ -55,6 +59,7 @@ object LinkConfigStore {
             .putBoolean(K_DEBUG_XML, cfg.debugXml)
             .putString(K_CAPTURE_STRATEGY, cfg.captureStrategy)
             .putBoolean(K_OCR_ENABLED, cfg.ocrEnabled)
+            .putString(K_TABSCAN_FORWARD_KEYWORD, cfg.tabScanForwardKeyword)
             .apply()
     }
 
