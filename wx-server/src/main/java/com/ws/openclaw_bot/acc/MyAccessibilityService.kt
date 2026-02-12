@@ -446,9 +446,13 @@ class MyAccessibilityService : AccessibilityService() {
             .put("target_events", org.json.JSONArray().apply { tabScanTargetEvents.forEach { put(it) } })
         val cycleString = cycle.toString()
         logLong("LanBotTabScan", "TabScan cycle result: ", cycleString)
-        val cyclePath = saveTabScanResultToSdcard(cycleString)
+        val cyclePath = saveTabScanResultToInternalFile(cycleString)
         tabScanLastCycleFile = cyclePath
-        Logger.i("TabScan cycle file: ${cyclePath ?: "<failed>"}", tag = "LanBotTabScan")
+        if (cyclePath != null) {
+            Logger.i("TabScan cycle file: $cyclePath", tag = "LanBotTabScan")
+        } else {
+            Logger.i("TabScan cycle file saving disabled", tag = "LanBotTabScan")
+        }
         if (segment == null) {
             Logger.w(
                 "TabScan segment not found: start=LinearLayout end=ImageButton(${TAB_SCAN_SEGMENT_END_MARKER})",
@@ -503,8 +507,12 @@ class MyAccessibilityService : AccessibilityService() {
                 }
                 pushAddedMessagesToClientPush(pushDescList, segment)
             }
-            tabScanLastDeltaFile = saveTabScanDeltaToSdcard(deltaString)
-            Logger.i("TabScan delta file: ${tabScanLastDeltaFile ?: "<failed>"}", tag = "LanBotTabScan")
+            tabScanLastDeltaFile = saveTabScanDeltaToInternalFile(deltaString)
+            if (tabScanLastDeltaFile != null) {
+                Logger.i("TabScan delta file: ${tabScanLastDeltaFile}", tag = "LanBotTabScan")
+            } else {
+                Logger.i("TabScan delta file saving disabled", tag = "LanBotTabScan")
+            }
         } else {
             Logger.i("TabScan cycle #$tabScanCycleIndex unchanged", tag = "LanBotTabScan")
         }
@@ -764,9 +772,10 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun saveTabScanResultToSdcard(content: String): String? {
+    private fun saveTabScanResultToInternalFile(content: String): String? {
+        if (!SAVE_TABSCAN_DEBUG_FILES) return null
         return try {
-            val dir = File(SDCARD_OCR_DIR)
+            val dir = File(applicationContext.filesDir, DEBUG_FILES_DIR_NAME)
             if (!dir.exists() && !dir.mkdirs()) return null
             val file = File(dir, "tab_scan_cycle_${tabScanCycleIndex}_${System.currentTimeMillis()}.json")
             file.writeText(content)
@@ -776,9 +785,10 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun saveTabScanDeltaToSdcard(content: String): String? {
+    private fun saveTabScanDeltaToInternalFile(content: String): String? {
+        if (!SAVE_TABSCAN_DEBUG_FILES) return null
         return try {
-            val dir = File(SDCARD_OCR_DIR)
+            val dir = File(applicationContext.filesDir, DEBUG_FILES_DIR_NAME)
             if (!dir.exists() && !dir.mkdirs()) return null
             val file = File(dir, "tab_scan_delta_${tabScanCycleIndex}_${System.currentTimeMillis()}.json")
             file.writeText(content)
@@ -941,7 +951,7 @@ class MyAccessibilityService : AccessibilityService() {
         if (scaled !== source) scaled.recycle()
         source.recycle()
         val bytes = out.toByteArray()
-        saveOcrCaptureToSdcard(bytes, overlayJpeg, ocrText)
+        saveOcrCaptureToInternalFile(bytes, overlayJpeg, ocrText)
         val encoded = Base64.encodeToString(bytes, Base64.NO_WRAP)
         return CapturedFrame(
             mode = mode,
@@ -1065,12 +1075,12 @@ class MyAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun saveOcrCaptureToSdcard(jpeg: ByteArray, overlayJpeg: ByteArray?, text: String) {
-        if (!SAVE_CAPTURE_TO_SDCARD) return
+    private fun saveOcrCaptureToInternalFile(jpeg: ByteArray, overlayJpeg: ByteArray?, text: String) {
+        if (!SAVE_CAPTURE_DEBUG_FILES) return
         try {
-            val dir = File(SDCARD_OCR_DIR)
+            val dir = File(applicationContext.filesDir, DEBUG_FILES_DIR_NAME)
             if (!dir.exists() && !dir.mkdirs()) {
-                Logger.w("OCR save failed: cannot mkdir $SDCARD_OCR_DIR", tag = "LanBotOCR")
+                Logger.w("OCR save failed: cannot mkdir ${dir.absolutePath}", tag = "LanBotOCR")
                 return
             }
             val ts = System.currentTimeMillis()
@@ -1151,8 +1161,9 @@ class MyAccessibilityService : AccessibilityService() {
         private const val SCREEN_CAPTURE_THROTTLE_MS = 2200L
         private const val CAPTURE_JPEG_QUALITY = 55
         private const val CAPTURE_MAX_WIDTH = 960
-        private const val SAVE_CAPTURE_TO_SDCARD = true
-        private const val SDCARD_OCR_DIR = "/sdcard/ocr"
+        private const val SAVE_CAPTURE_DEBUG_FILES = false
+        private const val SAVE_TABSCAN_DEBUG_FILES = false
+        private const val DEBUG_FILES_DIR_NAME = "ocr_debug"
         private const val LOGCAT_CHUNK_SIZE = 2800
         private const val TAB_SCAN_INTERVAL_MS = 250L
         private const val TAB_SCAN_SENT_CACHE_MAX = 200
