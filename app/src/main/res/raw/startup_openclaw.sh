@@ -26,6 +26,18 @@
 set -e
 set -o pipefail
 
+# Colors
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m'
+
+# Ensure common Termux binary path exists in non-login shells
+if [ -d "/data/data/com.termux/files/usr/bin" ]; then
+    export PATH="/data/data/com.termux/files/usr/bin:$PATH"
+fi
+
 # Parse command line options
 VERBOSE=0
 DRY_RUN=0
@@ -67,33 +79,87 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-trap 'echo -e "${RED}Error: script execution failed. Check logs above.${NC}"; exit 1' ERR
+trap 'echo -e "${RED}Error at line ${BASH_LINENO[0]}: command failed: ${BASH_COMMAND}${NC}"; exit 1' ERR
 
 # ==========================================
 # Openclaw Termux Deployment Script v2.0
 # ==========================================
 
 # Function definitions
+PKG_MGR=""
+
+detect_pkg_manager() {
+    if command -v pkg >/dev/null 2>&1; then
+        PKG_MGR="pkg"
+    elif command -v apt-get >/dev/null 2>&1; then
+        PKG_MGR="apt-get"
+    elif command -v apk >/dev/null 2>&1; then
+        PKG_MGR="apk"
+    else
+        PKG_MGR=""
+    fi
+}
+
+pkg_update_cmd() {
+    case "$PKG_MGR" in
+        pkg) run_cmd pkg update -y ;;
+        apt-get) run_cmd apt-get update -y ;;
+        apk) run_cmd apk update ;;
+        *) return 1 ;;
+    esac
+}
+
+pkg_upgrade_cmd() {
+    case "$PKG_MGR" in
+        pkg) run_cmd pkg upgrade -y ;;
+        apt-get) run_cmd apt-get upgrade -y ;;
+        apk) run_cmd apk upgrade ;;
+        *) return 1 ;;
+    esac
+}
+
+pkg_install_cmd() {
+    case "$PKG_MGR" in
+        pkg) run_cmd pkg install "$@" -y ;;
+        apt-get) run_cmd apt-get install -y "$@" ;;
+        apk) run_cmd apk add "$@" ;;
+        *) return 1 ;;
+    esac
+}
+
 check_deps() {
     # Check and install basic dependencies
     log "Checking base environment"
     echo -e "${YELLOW}[1/6] Checking base runtime environment...${NC}"
 
+    detect_pkg_manager
+    if [ -z "$PKG_MGR" ]; then
+        log "No supported package manager found in PATH: $PATH"
+        echo -e "${RED}Error: no supported package manager found (pkg/apt-get/apk)${NC}"
+        exit 1
+    fi
+    log "Detected package manager: $PKG_MGR"
+
     # Check if pkg update is needed (run at most once per day)
     UPDATE_FLAG="$HOME/.pkg_last_update"
-    if [ ! -f "$UPDATE_FLAG" ] || [ $(($(date +%s) - $(stat -c %Y "$UPDATE_FLAG" 2>/dev/null || echo 0))) -gt 86400 ]; then
-        log "Running pkg update"
+    LAST_UPDATE_TS=0
+    if [ -f "$UPDATE_FLAG" ]; then
+        LAST_UPDATE_TS=$(date -r "$UPDATE_FLAG" +%s 2>/dev/null || stat -c %Y "$UPDATE_FLAG" 2>/dev/null || echo 0)
+    fi
+    NOW_TS=$(date +%s)
+    if [ ! -f "$UPDATE_FLAG" ] || [ $((NOW_TS - LAST_UPDATE_TS)) -gt 86400 ]; then
+        log "Running package index update via $PKG_MGR"
         echo -e "${YELLOW}Updating package lists...${NC}"
-        run_cmd pkg update -y
+        pkg_update_cmd
         if [ $? -ne 0 ]; then
-            log "pkg update failed"
-            echo -e "${RED}Error: pkg update failed${NC}"
+            log "Package update failed ($PKG_MGR)"
+            echo -e "${RED}Error: package update failed ($PKG_MGR)${NC}"
             exit 1
         fi
         run_cmd touch "$UPDATE_FLAG"
-        log "pkg update completed"
+        log "Package update completed"
     else
-        log "Skipping pkg update (already up to date)"
+        log "Skipping package update (already up to date)"
         echo -e "${GREEN}Package list is already up to date${NC}"
     fi
 
@@ -102,16 +168,12 @@ check_deps() {
         log "Node.js version check failed: $NODE_VERSION, trying auto-install"
         echo -e "${YELLOW}Node.js is missing or below v22. Trying auto-install...${NC}"
 
-        if command -v pkg >/dev/null 2>&1; then
-            run_cmd pkg update -y
-            run_cmd pkg install nodejs -y
-        elif command -v apk >/dev/null 2>&1; then
-            run_cmd apk update
-            run_cmd apk add nodejs npm
+        if [ "$PKG_MGR" = "apk" ]; then
+            pkg_update_cmd
+            pkg_install_cmd nodejs npm
         else
-            log "No pkg/apk found to auto-install nodejs"
-            echo -e "${RED}Error: cannot auto-install Node.js (pkg/apk not found)${NC}"
-            exit 1
+            pkg_update_cmd
+            pkg_install_cmd nodejs
         fi
 
         hash -r
@@ -150,13 +212,13 @@ check_deps() {
     if [ ${#MISSING_DEPS[@]} -ne 0 ]; then
         log "Missing dependencies: ${MISSING_DEPS[*]}"
         echo -e "${YELLOW}Missing dependencies: ${MISSING_DEPS[*]}${NC}"
-        run_cmd pkg upgrade -y
+        pkg_upgrade_cmd
         if [ $? -ne 0 ]; then
-            log "pkg upgrade failed"
-            echo -e "${RED}Error: pkg upgrade failed${NC}"
+            log "Package upgrade failed ($PKG_MGR)"
+            echo -e "${RED}Error: package upgrade failed ($PKG_MGR)${NC}"
             exit 1
         fi
-        run_cmd pkg install ${MISSING_DEPS[*]} -y
+        pkg_install_cmd ${MISSING_DEPS[*]}
         if [ $? -ne 0 ]; then
             log "Dependency installation failed"
             echo -e "${RED}Error: dependency installation failed${NC}"
@@ -607,12 +669,6 @@ uninstall_openclaw() {
 }
 
 # Main script
-
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
 
 # Check terminal color support
 if [ -t 1 ] && [ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]; then
