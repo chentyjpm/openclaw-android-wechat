@@ -25,23 +25,44 @@
         <Button
             android:id="@+id/btn_float_tab_scan_start"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="18dp"
             android:layout_marginStart="10dp"
-            android:text="开始" />
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:text="开始"
+            android:textSize="11sp" />
 
         <Button
             android:id="@+id/btn_float_tab_scan_stop"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="18dp"
             android:layout_marginStart="6dp"
-            android:text="停止" />
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:text="停止"
+            android:textSize="11sp" />
 
         <Button
             android:id="@+id/btn_float_log_toggle"
             android:layout_width="wrap_content"
-            android:layout_height="36dp"
+            android:layout_height="18dp"
             android:layout_marginStart="6dp"
-            android:text="日志" />
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:paddingTop="0dp"
+            android:paddingBottom="0dp"
+            android:text="日志"
+            android:textSize="11sp" />
     </LinearLayout>
 
     <LinearLayout
