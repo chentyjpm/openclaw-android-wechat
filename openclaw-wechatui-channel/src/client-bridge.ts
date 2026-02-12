@@ -24,6 +24,7 @@ type ClientTask = {
   task_id: number;
   type: string;
   payload: Record<string, unknown>;
+  created_at_ms: number;
 };
 
 type ClientQueueState = {
@@ -32,12 +33,24 @@ type ClientQueueState = {
   tasks: ClientTask[];
 };
 
+type InboundDedupState = {
+  suppressUntilMs: number;
+  recentOrder: Array<{ key: string; at: number }>;
+  recentMap: Map<string, number>;
+  suppressDropCount: number;
+};
+
 const clientBridgeTargets = new Set<ClientBridgeTarget>();
 const queueByAccount = new Map<string, ClientQueueState>();
 const inboundChainByAccount = new Map<string, Promise<void>>();
+const inboundDedupByAccount = new Map<string, InboundDedupState>();
 const MAX_TASKS = 2000;
 const CLIENT_PULL_PATH = "/client/pull";
 const CLIENT_PUSH_PATH = "/client/push";
+const HELLO_SUPPRESS_MS = 5000;
+const INBOUND_DEDUP_TTL_MS = 180_000;
+const INBOUND_DEDUP_MAX = 2000;
+const TASK_TTL_MS = 120_000;
 
 function readJsonBody(req: IncomingMessage, maxBytes: number) {
   const chunks: Buffer[] = [];
@@ -136,6 +149,7 @@ function enqueueTaskForAccount(accountId: string, type: string, payload: Record<
     task_id: state.nextTaskId++,
     type,
     payload,
+    created_at_ms: Date.now(),
   };
   state.tasks.push(task);
   if (state.tasks.length > MAX_TASKS) {
@@ -146,6 +160,104 @@ function enqueueTaskForAccount(accountId: string, type: string, payload: Record<
 
 function enqueueTask(target: ClientBridgeTarget, type: string, payload: Record<string, unknown>): ClientTask {
   return enqueueTaskForAccount(target.account.accountId, type, payload);
+}
+
+function pruneExpiredTasks(state: ClientQueueState, now: number): void {
+  const minTs = now - TASK_TTL_MS;
+  if (state.tasks.length === 0) return;
+  state.tasks = state.tasks.filter((t) => t.created_at_ms >= minTs);
+}
+
+function resetQueueState(accountId: string): ClientQueueState {
+  const state = getQueueState(accountId);
+  state.serverBootId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+  state.nextTaskId = 1;
+  state.tasks = [];
+  return state;
+}
+
+function getInboundDedupState(accountId: string): InboundDedupState {
+  const existing = inboundDedupByAccount.get(accountId);
+  if (existing) return existing;
+  const created: InboundDedupState = {
+    suppressUntilMs: 0,
+    recentOrder: [],
+    recentMap: new Map<string, number>(),
+    suppressDropCount: 0,
+  };
+  inboundDedupByAccount.set(accountId, created);
+  return created;
+}
+
+function normalizeInboundKey(text: string): string {
+  return text.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function pruneInboundDedup(state: InboundDedupState, now: number): void {
+  const minTs = now - INBOUND_DEDUP_TTL_MS;
+  while (state.recentOrder.length > 0) {
+    const head = state.recentOrder[0];
+    if (!head) break;
+    if (head.at >= minTs && state.recentOrder.length <= INBOUND_DEDUP_MAX) break;
+    state.recentOrder.shift();
+    const mapped = state.recentMap.get(head.key);
+    if (mapped != null && mapped <= head.at) {
+      state.recentMap.delete(head.key);
+    }
+  }
+}
+
+function shouldAcceptInboundText(params: {
+  accountId: string;
+  text: string;
+  now: number;
+  target: ClientBridgeTarget;
+}): boolean {
+  const { accountId, text, now, target } = params;
+  const state = getInboundDedupState(accountId);
+
+  if (now < state.suppressUntilMs) {
+    state.suppressDropCount += 1;
+    if (state.suppressDropCount === 1 || state.suppressDropCount % 20 === 0) {
+      target.runtime.log?.(
+        `[client-bridge] dropping startup backlog account=${accountId} dropped=${state.suppressDropCount}`,
+      );
+    }
+    return false;
+  }
+
+  pruneInboundDedup(state, now);
+  const key = normalizeInboundKey(text);
+  const last = state.recentMap.get(key);
+  if (last != null && now - last < INBOUND_DEDUP_TTL_MS) {
+    return false;
+  }
+
+  state.recentMap.set(key, now);
+  state.recentOrder.push({ key, at: now });
+  if (state.recentOrder.length > INBOUND_DEDUP_MAX) {
+    pruneInboundDedup(state, now);
+  }
+  return true;
+}
+
+function isHelloEnvelope(envelope: unknown): boolean {
+  if (!envelope || typeof envelope !== "object" || Array.isArray(envelope)) return false;
+  const env = envelope as Record<string, unknown>;
+  return typeof env.hello === "object" && env.hello !== null;
+}
+
+function markClientSessionStarted(target: ClientBridgeTarget): void {
+  const accountId = target.account.accountId;
+  const queue = resetQueueState(accountId);
+  const dedup = getInboundDedupState(accountId);
+  dedup.suppressUntilMs = Date.now() + HELLO_SUPPRESS_MS;
+  dedup.suppressDropCount = 0;
+  dedup.recentMap.clear();
+  dedup.recentOrder = [];
+  target.runtime.log?.(
+    `[client-bridge] client hello received account=${accountId}; queue reset boot=${queue.serverBootId}`,
+  );
 }
 
 export function enqueueClientSendTextTask(params: {
@@ -273,6 +385,7 @@ export function registerClientBridgeTarget(target: ClientBridgeTarget): () => vo
     if (!stillExists) {
       queueByAccount.delete(accountId);
       inboundChainByAccount.delete(accountId);
+      inboundDedupByAccount.delete(accountId);
     }
   };
 }
@@ -309,7 +422,11 @@ export async function handleClientPullRequest(req: IncomingMessage, res: ServerR
   const afterId = parseNumber(obj.after_id ?? obj.afterId, 0);
   const limit = Math.max(1, Math.min(50, Math.floor(parseNumber(obj.limit, 10))));
   const state = getQueueState(target.account.accountId);
-  const tasks = state.tasks.filter((t) => t.task_id > afterId).slice(0, limit);
+  pruneExpiredTasks(state, Date.now());
+  const tasks = state.tasks
+    .filter((t) => t.task_id > afterId)
+    .slice(0, limit)
+    .map((t) => ({ task_id: t.task_id, type: t.type, payload: t.payload }));
   json(res, 200, { server_boot_id: state.serverBootId, tasks });
   return true;
 }
@@ -351,9 +468,18 @@ export async function handleClientPushRequest(req: IncomingMessage, res: ServerR
   json(res, 200, { ok: true });
 
   setImmediate(() => {
+    if (envelopes.some((env) => isHelloEnvelope(env))) {
+      markClientSessionStarted(target);
+      return;
+    }
+
     for (const envelope of envelopes) {
       const text = extractMsgText(envelope);
       if (!text) continue;
+      const now = Date.now();
+      if (!shouldAcceptInboundText({ accountId: target.account.accountId, text, now, target })) {
+        continue;
+      }
       target.statusSink?.({ lastInboundAt: Date.now() });
       enqueueInboundWork(target, text);
     }
