@@ -57,6 +57,18 @@
             android:hint="Default: empty"
             android:inputType="text" />
 
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="TabScan Forward Keyword" />
+
+        <EditText
+            android:id="@+id/et_tabscan_keyword"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Default: empty (no filtering)"
+            android:inputType="text" />
+
         <CheckBox
             android:id="@+id/cb_tls"
             android:layout_width="wrap_content"

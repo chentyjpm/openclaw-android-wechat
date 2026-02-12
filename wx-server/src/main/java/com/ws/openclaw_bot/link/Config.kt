@@ -16,7 +16,7 @@ data class ServerConfig(
     val debugXml: Boolean = false,
     val captureStrategy: String = CAPTURE_STRATEGY_SCREEN_FIRST,
     val ocrEnabled: Boolean = true,
-    val tabScanForwardKeyword: String = "@龙虾钳",
+    val tabScanForwardKeyword: String = "",
 )
 
 object LinkConfigStore {
