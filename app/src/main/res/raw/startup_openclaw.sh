@@ -24,6 +24,7 @@
 # ==========================================
 
 set -e
+set -E
 set -o pipefail
 
 # Colors
@@ -163,8 +164,16 @@ check_deps() {
         echo -e "${GREEN}Package list is already up to date${NC}"
     fi
 
-    NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)
-    if [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" -lt 22 ]; then
+    log "Checking Node.js runtime"
+    echo -e "${YELLOW}Checking Node.js runtime...${NC}"
+    NODE_VERSION=""
+    if command -v node >/dev/null 2>&1; then
+        NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1 || true)
+    fi
+    if ! echo "$NODE_VERSION" | grep -Eq '^[0-9]+$'; then
+        NODE_VERSION=0
+    fi
+    if [ "$NODE_VERSION" -lt 22 ]; then
         log "Node.js version check failed: $NODE_VERSION, trying auto-install"
         echo -e "${YELLOW}Node.js is missing or below v22. Trying auto-install...${NC}"
 
@@ -177,8 +186,14 @@ check_deps() {
         fi
 
         hash -r
-        NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1)
-        if [ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" -lt 22 ]; then
+        NODE_VERSION=""
+        if command -v node >/dev/null 2>&1; then
+            NODE_VERSION=$(node --version 2>/dev/null | sed 's/v//' | cut -d. -f1 || true)
+        fi
+        if ! echo "$NODE_VERSION" | grep -Eq '^[0-9]+$'; then
+            NODE_VERSION=0
+        fi
+        if [ "$NODE_VERSION" -lt 22 ]; then
             log "Node.js still invalid after auto-install: $NODE_VERSION"
             echo -e "${RED}Error: Node.js version must be >= 22. Current: $(node --version 2>/dev/null || echo 'unknown')${NC}"
             exit 1
