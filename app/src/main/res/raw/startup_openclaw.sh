@@ -103,8 +103,8 @@ detect_pkg_manager() {
 
 pkg_update_cmd() {
     case "$PKG_MGR" in
-        pkg) run_cmd pkg update -y ;;
-        apt-get) run_cmd apt-get update -y ;;
+        pkg) run_cmd env DEBIAN_FRONTEND=noninteractive apt-get update -y ;;
+        apt-get) run_cmd env DEBIAN_FRONTEND=noninteractive apt-get update -y ;;
         apk) run_cmd apk update ;;
         *) return 1 ;;
     esac
@@ -112,8 +112,13 @@ pkg_update_cmd() {
 
 pkg_upgrade_cmd() {
     case "$PKG_MGR" in
-        pkg) run_cmd pkg upgrade -y ;;
-        apt-get) run_cmd apt-get upgrade -y ;;
+        # Keep local config file when dpkg asks (equivalent to default "N")
+        pkg) run_cmd env DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+            -o Dpkg::Options::="--force-confdef" \
+            -o Dpkg::Options::="--force-confold" ;;
+        apt-get) run_cmd env DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+            -o Dpkg::Options::="--force-confdef" \
+            -o Dpkg::Options::="--force-confold" ;;
         apk) run_cmd apk upgrade ;;
         *) return 1 ;;
     esac
@@ -121,8 +126,13 @@ pkg_upgrade_cmd() {
 
 pkg_install_cmd() {
     case "$PKG_MGR" in
-        pkg) run_cmd pkg install "$@" -y ;;
-        apt-get) run_cmd apt-get install -y "$@" ;;
+        # Keep local config file when dpkg asks (equivalent to default "N")
+        pkg) run_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            -o Dpkg::Options::="--force-confdef" \
+            -o Dpkg::Options::="--force-confold" "$@" ;;
+        apt-get) run_cmd env DEBIAN_FRONTEND=noninteractive apt-get install -y \
+            -o Dpkg::Options::="--force-confdef" \
+            -o Dpkg::Options::="--force-confold" "$@" ;;
         apk) run_cmd apk add "$@" ;;
         *) return 1 ;;
     esac
