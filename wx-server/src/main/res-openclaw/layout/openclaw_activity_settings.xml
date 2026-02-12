@@ -49,30 +49,35 @@
             android:id="@+id/cb_tls"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="Enable TLS" />
 
         <CheckBox
             android:id="@+id/cb_debug"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="Debug Events" />
 
         <CheckBox
             android:id="@+id/cb_debug_xml"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="Debug XML" />
 
         <CheckBox
             android:id="@+id/cb_capture_screen"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="Use Screen Capture Strategy" />
 
         <CheckBox
             android:id="@+id/cb_ocr_enabled"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:text="Enable OCR" />
 
         <Button
