@@ -162,7 +162,7 @@ open class MainActivity : AppCompatActivity() {
 
     private fun updateAccessibilityStatus() {
         val enabled = isAccessibilityEnabled(this)
-        statusText.text = if (enabled) "Accessibility: enabled" else "Accessibility: disabled"
+        statusText.text = if (enabled) "无障碍服务授权: 已授权" else "无障碍服务授权: 未授权"
         statusIcon.setImageResource(if (enabled) R.drawable.openclaw_ic_status_on else R.drawable.openclaw_ic_status_off)
     }
 
