@@ -17,7 +17,7 @@
             android:id="@+id/tv_float_title"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="LanBot"
+            android:text="OpenClawBot"
             android:textColor="#FFFFFFFF"
             android:textSize="14sp"
             android:textStyle="bold" />
@@ -37,13 +37,63 @@
             android:text="停止" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/tv_float_state"
+    <LinearLayout
+        android:id="@+id/float_status_row"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp"
-        android:text="Stopped"
-        android:textColor="#FF8BD17C"
-        android:textSize="12sp" />
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/iv_float_acc_status"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:contentDescription="accessibility_status"
+            android:src="@drawable/openclaw_ic_status_on" />
+
+        <TextView
+            android:id="@+id/tv_float_acc_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="10dp"
+            android:text="无障碍"
+            android:textColor="#FFFFFFFF"
+            android:textSize="12sp" />
+
+        <ImageView
+            android:id="@+id/iv_float_bot_status"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:contentDescription="bot_status"
+            android:src="@drawable/openclaw_ic_status_on" />
+
+        <TextView
+            android:id="@+id/tv_float_bot_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:layout_marginEnd="10dp"
+            android:text="Bot服务"
+            android:textColor="#FFFFFFFF"
+            android:textSize="12sp" />
+
+        <ImageView
+            android:id="@+id/iv_float_fg_status"
+            android:layout_width="12dp"
+            android:layout_height="12dp"
+            android:contentDescription="foreground_status"
+            android:src="@drawable/openclaw_ic_status_on" />
+
+        <TextView
+            android:id="@+id/tv_float_fg_status"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:text="前台服务"
+            android:textColor="#FFFFFFFF"
+            android:textSize="12sp" />
+    </LinearLayout>
 
 </LinearLayout>

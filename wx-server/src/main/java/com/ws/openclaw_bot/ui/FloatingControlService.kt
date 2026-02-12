@@ -5,7 +5,9 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Intent
+import android.content.IntentFilter
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -16,25 +18,33 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
-import android.widget.TextView
+import android.widget.ImageView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.ws.wx_server.R
 import com.ws.wx_server.acc.MyAccessibilityService
+import com.ws.wx_server.core.CoreForegroundService
 import com.ws.wx_server.core.ServiceStateStore
 import com.ws.wx_server.ime.LanBotImeService
 import com.ws.wx_server.util.Logger
+import com.ws.wx_server.util.isAccessibilityEnabled
 
 class FloatingControlService : Service() {
     private var windowManager: WindowManager? = null
     private var rootView: View? = null
     private var lp: WindowManager.LayoutParams? = null
-    private var stateText: TextView? = null
+    private var accStatusIcon: ImageView? = null
+    private var botStatusIcon: ImageView? = null
+    private var foregroundStatusIcon: ImageView? = null
+    private var lastBotState: String = "disconnected"
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
+        registerReceiver(linkStateReceiver, IntentFilter(CoreForegroundService.ACTION_LINK_STATE))
+        registerReceiver(accConnectedReceiver, IntentFilter(MyAccessibilityService.ACTION_CONNECTED))
+        registerReceiver(accDisconnectedReceiver, IntentFilter(MyAccessibilityService.ACTION_DISCONNECTED))
         startAsForeground()
     }
 
@@ -45,12 +55,16 @@ class FloatingControlService : Service() {
             return START_NOT_STICKY
         }
         ensureOverlay()
-        updateStateText()
+        sendBroadcast(Intent(CoreForegroundService.ACTION_QUERY_STATE).apply { setPackage(packageName) })
+        updateStatusIndicators()
         return START_STICKY
     }
 
     override fun onDestroy() {
         super.onDestroy()
+        runCatching { unregisterReceiver(linkStateReceiver) }
+        runCatching { unregisterReceiver(accConnectedReceiver) }
+        runCatching { unregisterReceiver(accDisconnectedReceiver) }
         removeOverlay()
     }
 
@@ -85,7 +99,7 @@ class FloatingControlService : Service() {
         val pending = PendingIntent.getActivity(this, 0, openIntent, pendingFlags)
         return NotificationCompat.Builder(this, NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.openclaw_ic_status_on)
-            .setContentTitle("LanBot Floating Control")
+            .setContentTitle("OpenClawBot Floating Control")
             .setContentText("Floating window is active")
             .setContentIntent(pending)
             .setOngoing(true)
@@ -117,7 +131,9 @@ class FloatingControlService : Service() {
         }
         rootView = null
         lp = null
-        stateText = null
+        accStatusIcon = null
+        botStatusIcon = null
+        foregroundStatusIcon = null
     }
 
     private fun buildLayoutParams(): WindowManager.LayoutParams {
@@ -141,7 +157,9 @@ class FloatingControlService : Service() {
     }
 
     private fun bindActions(view: View, params: WindowManager.LayoutParams) {
-        stateText = view.findViewById(R.id.tv_float_state)
+        accStatusIcon = view.findViewById(R.id.iv_float_acc_status)
+        botStatusIcon = view.findViewById(R.id.iv_float_bot_status)
+        foregroundStatusIcon = view.findViewById(R.id.iv_float_fg_status)
         val tabScanStartBtn = view.findViewById<Button>(R.id.btn_float_tab_scan_start)
         val tabScanStopBtn = view.findViewById<Button>(R.id.btn_float_tab_scan_stop)
 
@@ -188,9 +206,23 @@ class FloatingControlService : Service() {
         })
     }
 
-    private fun updateStateText() {
-        val running = ServiceStateStore.isRunning(this)
-        stateText?.text = if (running) "Running" else "Stopped"
+    private fun updateStatusIndicators() {
+        val accessibilityEnabled = isAccessibilityEnabled(this)
+        val foregroundRunning = ServiceStateStore.isRunning(this)
+        val botState = lastBotState.lowercase()
+
+        accStatusIcon?.setImageResource(
+            if (accessibilityEnabled) R.drawable.openclaw_ic_status_on else R.drawable.openclaw_ic_status_off
+        )
+        foregroundStatusIcon?.setImageResource(
+            if (foregroundRunning) R.drawable.openclaw_ic_status_on else R.drawable.openclaw_ic_status_off
+        )
+        botStatusIcon?.setImageResource(
+            when (botState) {
+                "connected", "connecting" -> R.drawable.openclaw_ic_status_on
+                else -> R.drawable.openclaw_ic_status_off
+            }
+        )
     }
 
     private fun canDrawOverlays(): Boolean {
@@ -201,5 +233,27 @@ class FloatingControlService : Service() {
     companion object {
         private const val NOTIFICATION_CHANNEL_ID = "lanbot_floating_control"
         private const val NOTIFICATION_ID = 1002
+    }
+
+    private val linkStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            lastBotState = intent?.getStringExtra(CoreForegroundService.EXTRA_STATE)
+                ?.trim()
+                ?.ifBlank { "disconnected" }
+                ?: "disconnected"
+            updateStatusIndicators()
+        }
+    }
+
+    private val accConnectedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            updateStatusIndicators()
+        }
+    }
+
+    private val accDisconnectedReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context?, intent: Intent?) {
+            updateStatusIndicators()
+        }
     }
 }
