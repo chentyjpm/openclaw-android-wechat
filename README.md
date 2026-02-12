@@ -1,15 +1,40 @@
-﻿BUILDING ...
+﻿# OpenClawBot Android
 
-鎼炰笉瀹氬井淇℃暟鎹幏鍙?鍑嗗绉绘OCR
+OpenClawBot Android 是一个基于 Termux 的移动端自动化方案：
 
-Android PPOCR 闆嗘垚璇存槑锛坵x-server锛?
-1. 宸查泦鎴愪緷璧栵細`ncnn + opencv-mobile (auto download at build time)`
-2. 璇嗗埆鍏ュ彛锛歚wx-server/src/main/java/com/ws/**/ocr/PPOcrRecognizer.kt`
-3. 鎴浘閾捐矾宸叉帴鍏ワ細`wx-server/src/main/java/com/ws/**/acc/MyAccessibilityService.kt`
-4. 模型和字典在构建阶段自动下载并打包到 APK assets（无需运行时下载）
-5. 鑷姩涓嬭浇鍐呭锛?   - `pdocrv2.0_det-op.param + pdocrv2.0_det-op.bin`
-   - `pdocrv2.0_rec-op.param + pdocrv2.0_rec-op.bin`
-   - `paddleocr_keys.txt`
-   - `PaddleOCRNcnn.java + native paddleocrncnn`
+- 在 Android 设备内通过 **Termux** 运行 **OpenClaw** 服务
+- 通过 **无障碍服务** 读取界面结构、识别控件与页面变化
+- 通过 **输入法服务（IME）** 注入输入与按键动作
+- 配合前台服务与悬浮窗，实现可视化状态管理和控制入口
 
+项目目标是把手机侧能力封装为一个可持续运行的 Bot 执行环境，让 OpenClaw 在安卓设备上完成消息处理、界面操作和任务调度。
 
+## 工作原理
+
+1. App 启动后准备运行环境，把启动脚本与插件资源同步到 Termux 用户目录。
+2. 在 Termux 中启动 OpenClaw 主进程，并加载微信相关插件。
+3. 无障碍服务持续监听当前页面状态，采集需要的 UI 信息。
+4. 输入法服务负责执行输入、切换焦点、发送等可控交互动作。
+5. App 前台服务维护常驻能力，避免进程被系统回收。
+
+## 核心模块
+
+- `app/`
+  - Android 主应用与界面交互入口
+  - 资源打包（启动脚本、插件 tar 包）
+- `wx-server/`
+  - 无障碍能力、任务桥接、状态上报
+  - 与 OpenClaw 侧逻辑的数据交互
+- `app/src/main/res/raw/startup_openclaw.sh`
+  - Termux 侧启动与初始化脚本
+
+## 适用场景
+
+- 在 Android 真机上部署 OpenClaw Bot
+- 微信等 App 的自动化消息处理和任务执行
+- 需要“本地设备执行 + 远程策略控制”的移动端自动化场景
+
+## 说明
+
+本项目依赖系统级权限能力（无障碍、输入法、前台服务）。
+请仅在合法、合规、可控的环境中使用，并确保你对自动化行为和账号安全风险有充分评估。
