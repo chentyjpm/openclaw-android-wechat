@@ -43,6 +43,7 @@ import okio.ByteString
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.net.URI
 import java.util.concurrent.TimeUnit
 
 class FloatingControlService : Service() {
@@ -309,16 +310,26 @@ class FloatingControlService : Service() {
     private fun buildWsLogUrl(): String {
         val cfg = LinkConfigStore.load(applicationContext)
         val scheme = if (cfg.useTls) "wss" else "ws"
-        val cleanedHost = cfg.host
-            .trim()
-            .removePrefix("http://")
-            .removePrefix("https://")
-            .removePrefix("ws://")
-            .removePrefix("wss://")
-            .trimEnd('/')
-            .substringBefore('/')
-            .ifBlank { "127.0.0.1" }
-        return "$scheme://$cleanedHost:${cfg.port}/ws"
+        val rawHost = cfg.host.trim().ifBlank { "127.0.0.1" }
+        val normalized = if (
+            rawHost.startsWith("http://") ||
+            rawHost.startsWith("https://") ||
+            rawHost.startsWith("ws://") ||
+            rawHost.startsWith("wss://")
+        ) {
+            rawHost
+        } else {
+            "http://$rawHost"
+        }
+        return runCatching {
+            val uri = URI(normalized)
+            val host = uri.host?.ifBlank { null } ?: "127.0.0.1"
+            val port = if (uri.port > 0) uri.port else cfg.port
+            val path = uri.rawPath?.takeIf { it.isNotBlank() } ?: "/"
+            "$scheme://$host:$port$path"
+        }.getOrElse {
+            "$scheme://127.0.0.1:${cfg.port}/"
+        }
     }
 
     private fun connectWsLog() {
@@ -411,7 +422,12 @@ class FloatingControlService : Service() {
             .put("role", "operator")
             .put("scopes", JSONArray().put("operator.read"))
         if (!authToken.isNullOrBlank()) {
-            connectParams.put("auth", JSONObject().put("token", authToken))
+            connectParams.put(
+                "auth",
+                JSONObject()
+                    .put("token", authToken)
+                    .put("password", authToken),
+            )
         }
 
         val frameJson = JSONObject()

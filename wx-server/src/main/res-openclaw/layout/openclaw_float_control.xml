@@ -21,48 +21,49 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
+        android:gravity="center_vertical"
         android:orientation="horizontal">
 
         <Button
             android:id="@+id/btn_float_tab_scan_start"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:minWidth="0dp"
             android:minHeight="0dp"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp"
-            android:text="开始"
-            android:textSize="11sp" />
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:text="&#24320;&#22987;"
+            android:textSize="12sp" />
 
         <Button
             android:id="@+id/btn_float_tab_scan_stop"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_marginStart="6dp"
             android:minWidth="0dp"
             android:minHeight="0dp"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp"
-            android:text="停止"
-            android:textSize="11sp" />
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:text="&#20572;&#27490;"
+            android:textSize="12sp" />
 
         <Button
             android:id="@+id/btn_float_log_toggle"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
+            android:layout_height="30dp"
             android:layout_marginStart="6dp"
             android:minWidth="0dp"
             android:minHeight="0dp"
-            android:paddingStart="8dp"
-            android:paddingEnd="8dp"
-            android:paddingTop="2dp"
-            android:paddingBottom="2dp"
-            android:text="日志"
-            android:textSize="11sp" />
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:paddingTop="3dp"
+            android:paddingBottom="3dp"
+            android:text="&#26085;&#24535;"
+            android:textSize="12sp" />
     </LinearLayout>
 
     <LinearLayout
@@ -86,7 +87,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
             android:layout_marginEnd="10dp"
-            android:text="无障碍"
+            android:text="&#26080;&#38556;&#30861;"
             android:textColor="#FFFFFFFF"
             android:textSize="12sp" />
 
@@ -103,7 +104,7 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
             android:layout_marginEnd="10dp"
-            android:text="Bot服务"
+            android:text="Bot&#26381;&#21153;"
             android:textColor="#FFFFFFFF"
             android:textSize="12sp" />
 
@@ -119,7 +120,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="4dp"
-            android:text="前台服务"
+            android:text="&#21069;&#21488;&#26381;&#21153;"
             android:textColor="#FFFFFFFF"
             android:textSize="12sp" />
     </LinearLayout>
@@ -143,7 +144,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="WS 运行日志"
+                android:text="WS &#36816;&#34892;&#26085;&#24535;"
                 android:textColor="#FFB0FFB0"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -152,7 +153,7 @@
                 android:id="@+id/btn_float_log_clear"
                 android:layout_width="wrap_content"
                 android:layout_height="30dp"
-                android:text="清空" />
+                android:text="&#28165;&#31354;" />
         </LinearLayout>
 
         <ScrollView
@@ -169,7 +170,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="monospace"
-                android:text="点击日志开始连接 WS..."
+                android:text="&#28857;&#20987;&#26085;&#24535;&#24320;&#22987;&#36830;&#25509; WS..."
                 android:textColor="#FFD8FFD8"
                 android:textSize="11sp" />
         </ScrollView>
