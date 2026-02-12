@@ -91,7 +91,15 @@ tasks.register("prepareNcnnRuntimeLibs") {
             throw new GradleException("NDK directory not found: ${ndkDir.absolutePath}")
         }
 
-        def clangBase = new File(ndkDir, "toolchains/llvm/prebuilt/windows-x86_64/lib/clang")
+        def llvmPrebuiltRoot = new File(ndkDir, "toolchains/llvm/prebuilt")
+        def prebuiltDirs = llvmPrebuiltRoot.exists() ? (llvmPrebuiltRoot.listFiles()?.findAll { it.isDirectory() } ?: []) : []
+        if (prebuiltDirs.isEmpty()) {
+            throw new GradleException("Cannot locate NDK llvm prebuilt dir under: ${llvmPrebuiltRoot.absolutePath}")
+        }
+        def osName = System.getProperty("os.name", "").toLowerCase(java.util.Locale.US)
+        def preferredPrefix = osName.contains("windows") ? "windows" : (osName.contains("mac") || osName.contains("darwin") ? "darwin" : "linux")
+        def hostPrebuiltDir = prebuiltDirs.find { it.name.startsWith(preferredPrefix) } ?: prebuiltDirs.sort { a, b -> a.name <=> b.name }.first()
+        def clangBase = new File(hostPrebuiltDir, "lib/clang")
         def clangVersions = clangBase.exists() ? (clangBase.listFiles()?.findAll { it.isDirectory() } ?: []) : []
         if (clangVersions.isEmpty()) {
             throw new GradleException("Cannot locate clang runtime under: ${clangBase.absolutePath}")
@@ -125,7 +133,7 @@ tasks.register("prepareNcnnRuntimeLibs") {
             }
 
             def triple = abiTripleMap[abi]
-            def cxxSrc = new File(ndkDir, "toolchains/llvm/prebuilt/windows-x86_64/sysroot/usr/lib/${triple}/libc++_shared.so")
+            def cxxSrc = new File(hostPrebuiltDir, "sysroot/usr/lib/${triple}/libc++_shared.so")
             if (cxxSrc.exists()) {
                 copy {
                     from cxxSrc

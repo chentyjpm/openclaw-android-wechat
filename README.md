@@ -102,6 +102,24 @@ oclog
 - 支持调取更多手机硬件能力
 - 支持调用摄像头拍照
 
+## CI 执行结果（GitHub Actions）
+
+- 工作流：`.github/workflows/debug_build.yml`
+- 构建命令：`./gradlew assembleDebug`
+- 产物导出：`${APK_BASENAME_PREFIX}_all_outputs`（包含 APK、`sha256sums`、`output-metadata.json`）
+
+最近一次 CI 关键报错与修复：
+
+1. `./gradlew: Permission denied`
+2. `NDK (Side by side) 28.0.12674087 not accepted`
+3. `Cannot locate clang runtime under .../prebuilt/windows-x86_64/lib/clang`
+
+对应修复已落地：
+
+1. CI 增加 `chmod +x ./gradlew`
+2. CI 增加 `sdkmanager --licenses` 和 NDK 自动安装
+3. `wx-server/build.gradle` 改为按宿主系统自动选择 NDK `prebuilt` 目录（Linux/Windows/macOS）
+
 ## 参考项目与致谢
 
 - https://github.com/termux/termux-app
