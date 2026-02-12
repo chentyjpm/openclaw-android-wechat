@@ -32,6 +32,7 @@ open class MainActivity : AppCompatActivity() {
     private lateinit var serviceStopBtn: Button
     private lateinit var statusIcon: android.widget.ImageView
     private lateinit var serverStatusIcon: android.widget.ImageView
+    private lateinit var serviceStatusIcon: android.widget.ImageView
     private lateinit var serverStatusText: TextView
     private lateinit var openServerSettings: Button
     private lateinit var openAccessibilityBtn: Button
@@ -53,6 +54,7 @@ open class MainActivity : AppCompatActivity() {
         statusText = findViewById(R.id.tv_status)
         statusIcon = findViewById(R.id.iv_status)
         serverStatusIcon = findViewById(R.id.iv_server_status)
+        serviceStatusIcon = findViewById(R.id.iv_service_status)
         serverStatusText = findViewById(R.id.tv_server_status)
         serviceStateText = findViewById(R.id.tv_service_state)
         serviceStartBtn = findViewById(R.id.btn_service_start)
@@ -166,6 +168,9 @@ open class MainActivity : AppCompatActivity() {
 
     private fun updateServiceStateUi(running: Boolean) {
         serviceStateText.text = if (running) "Foreground service: running" else "Foreground service: stopped"
+        serviceStatusIcon.setImageResource(
+            if (running) R.drawable.openclaw_ic_status_on else R.drawable.openclaw_ic_status_off
+        )
         serviceStartBtn.isEnabled = !running
         serviceStopBtn.isEnabled = running
         if (!running) {
