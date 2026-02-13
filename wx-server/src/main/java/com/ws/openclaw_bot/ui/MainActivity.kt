@@ -96,6 +96,7 @@ open class MainActivity : AppCompatActivity() {
             serverStatusText.text = "OpenClaw服务: 连接中"
             serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_waiting)
             CoreForegroundService.start(this)
+            requestFloatingLogWsReconnect()
         }
 
         serviceStopBtn.setOnClickListener {
@@ -151,6 +152,7 @@ open class MainActivity : AppCompatActivity() {
                     serverStatusText.text = "OpenClaw服务: 连接中"
                     serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_waiting)
                     CoreForegroundService.start(this)
+                    requestFloatingLogWsReconnect()
                 }
             } else {
                 pendingStartServiceAfterGrant = false
@@ -309,6 +311,20 @@ open class MainActivity : AppCompatActivity() {
             }
         } catch (_: Throwable) {
             Toast.makeText(this, "Failed to start floating control", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun requestFloatingLogWsReconnect() {
+        try {
+            val serviceIntent = Intent(this, FloatingControlService::class.java).apply {
+                action = FloatingControlService.ACTION_RECONNECT_LOG_WS
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (_: Throwable) {
         }
     }
 

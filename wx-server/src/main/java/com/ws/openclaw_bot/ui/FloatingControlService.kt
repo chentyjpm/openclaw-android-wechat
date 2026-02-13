@@ -98,6 +98,9 @@ class FloatingControlService : Service() {
             return START_NOT_STICKY
         }
         ensureOverlay()
+        if (intent?.action == ACTION_RECONNECT_LOG_WS) {
+            reconnectWsLog("manual_reconnect")
+        }
         sendBroadcast(Intent(CoreForegroundService.ACTION_QUERY_STATE).apply { setPackage(packageName) })
         updateStatusIndicators()
         return START_STICKY
@@ -397,6 +400,19 @@ class FloatingControlService : Service() {
         runCatching { ws.close(1000, reason.take(64)) }
     }
 
+    private fun reconnectWsLog(reason: String) {
+        stopWsLog(reason)
+        wsTailCursor = null
+        wsTailInFlight = false
+        wsHandshakeReady = false
+        if (logPanelVisible) {
+            appendLog("ws reconnect requested")
+            connectWsLog()
+        } else {
+            appendLog("ws reconnect requested (log panel hidden)")
+        }
+    }
+
     private fun sendGatewayConnect(webSocket: WebSocket) {
         val reqId = nextWsReqId("connect")
         val authToken = resolveGatewayToken()
@@ -660,6 +676,7 @@ class FloatingControlService : Service() {
         private const val NOTIFICATION_ID = 1002
         private const val MAX_LOG_LINES = 120
         private const val WS_TAIL_POLL_MS = 1200L
+        const val ACTION_RECONNECT_LOG_WS = "com.ws.wx_server.FLOAT_RECONNECT_LOG_WS"
     }
 
     private val linkStateReceiver = object : BroadcastReceiver() {
