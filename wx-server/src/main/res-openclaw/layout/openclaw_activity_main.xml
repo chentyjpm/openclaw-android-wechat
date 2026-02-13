@@ -10,8 +10,15 @@
         android:id="@+id/btn_open_terminal"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
+        android:layout_marginBottom="12dp"
         android:text="@string/openclaw_home_open_terminal" />
+
+    <Button
+        android:id="@+id/btn_stop_openclaw"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="停止OpenClawBot" />
 
     <Button
         android:id="@+id/btn_open_server_settings"

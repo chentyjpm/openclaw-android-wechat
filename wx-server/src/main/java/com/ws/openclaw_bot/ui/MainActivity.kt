@@ -8,6 +8,8 @@ import android.net.Uri
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.view.accessibility.AccessibilityManager
 import android.view.inputmethod.InputMethodManager
@@ -23,9 +25,11 @@ import com.ws.wx_server.util.Logger
 import com.ws.wx_server.util.isAccessibilityEnabled
 import com.ws.wx_server.util.openAccessibilitySettings
 import com.ws.wx_server.link.CAPTURE_STRATEGY_SCREEN_FIRST
+import java.io.File
 
 open class MainActivity : AppCompatActivity() {
     private lateinit var openTerminalBtn: Button
+    private lateinit var stopOpenClawBtn: Button
     private lateinit var statusText: TextView
     private lateinit var serviceStateText: TextView
     private lateinit var serviceStartBtn: Button
@@ -52,6 +56,7 @@ open class MainActivity : AppCompatActivity() {
         setContentView(R.layout.openclaw_activity_main)
 
         openTerminalBtn = findViewById(R.id.btn_open_terminal)
+        stopOpenClawBtn = findViewById(R.id.btn_stop_openclaw)
         statusText = findViewById(R.id.tv_status)
         statusIcon = findViewById(R.id.iv_status)
         serverStatusIcon = findViewById(R.id.iv_server_status)
@@ -68,6 +73,7 @@ open class MainActivity : AppCompatActivity() {
         updateServiceStateUi(ServiceStateStore.isRunning(this))
 
         openTerminalBtn.setOnClickListener { openTermuxTerminal() }
+        stopOpenClawBtn.setOnClickListener { stopOpenClawBot() }
         openServerSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         openConfigEditorBtn.setOnClickListener { startActivity(Intent(this, OpenClawConfigEditorActivity::class.java)) }
         openAccessibilityBtn.setOnClickListener { openAccessibilitySettings(this) }
@@ -242,6 +248,44 @@ open class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun stopOpenClawBot() {
+        updateServiceStateUi(false)
+        CoreForegroundService.stop(this)
+        serverStatusText.text = "OpenClaw服务: 未连接"
+        serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
+
+        val bashFile = File(TERMUX_BASH_PATH)
+        if (!bashFile.isFile) {
+            Toast.makeText(this, "Termux runtime not ready", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        try {
+            val stopScript = "pkill -9 -f 'openclaw gateway' 2>/dev/null || true; " +
+                "tmux kill-session -t openclaw 2>/dev/null || true"
+            val execIntent = Intent(TERMUX_ACTION_SERVICE_EXECUTE, Uri.fromFile(bashFile))
+            execIntent.setClassName(this, TERMUX_SERVICE_CLASS_NAME)
+            execIntent.putExtra(TERMUX_EXTRA_ARGUMENTS, arrayOf("-lc", stopScript))
+            execIntent.putExtra(TERMUX_EXTRA_RUNNER, "app-shell")
+            execIntent.putExtra(TERMUX_EXTRA_WORKDIR, TERMUX_HOME_PATH)
+            execIntent.putExtra(TERMUX_EXTRA_COMMAND_LABEL, "Stop OpenClawBot")
+            startService(execIntent)
+
+            Handler(Looper.getMainLooper()).postDelayed({
+                try {
+                    val stopServiceIntent = Intent(TERMUX_ACTION_STOP_SERVICE)
+                    stopServiceIntent.setClassName(this, TERMUX_SERVICE_CLASS_NAME)
+                    startService(stopServiceIntent)
+                } catch (_: Throwable) {
+                }
+            }, 1200)
+
+            Toast.makeText(this, "Stop command sent", Toast.LENGTH_SHORT).show()
+        } catch (_: Throwable) {
+            Toast.makeText(this, "Failed to stop OpenClawBot", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun showInputMethodPicker() {
         val imm = getSystemService(INPUT_METHOD_SERVICE) as? InputMethodManager
         if (imm == null) {
@@ -324,5 +368,14 @@ open class MainActivity : AppCompatActivity() {
         private const val TEMP_DISABLE_CAPTURE_AND_OCR = true
         private const val REQUEST_SCREEN_CAPTURE = 7311
         private const val REQUEST_OVERLAY_PERMISSION = 7312
+        private const val TERMUX_SERVICE_CLASS_NAME = "com.termux.app.TermuxService"
+        private const val TERMUX_ACTION_SERVICE_EXECUTE = "com.termux.service_execute"
+        private const val TERMUX_ACTION_STOP_SERVICE = "com.termux.service_stop"
+        private const val TERMUX_EXTRA_ARGUMENTS = "com.termux.execute.arguments"
+        private const val TERMUX_EXTRA_RUNNER = "com.termux.execute.runner"
+        private const val TERMUX_EXTRA_WORKDIR = "com.termux.execute.cwd"
+        private const val TERMUX_EXTRA_COMMAND_LABEL = "com.termux.execute.command_label"
+        private const val TERMUX_BASH_PATH = "/data/data/com.termux/files/usr/bin/bash"
+        private const val TERMUX_HOME_PATH = "/data/data/com.termux/files/home"
     }
 }
