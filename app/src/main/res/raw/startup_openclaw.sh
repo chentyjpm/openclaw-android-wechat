@@ -653,23 +653,9 @@ start_service() {
 
     if [ -n "$RUNNING_PROCESS" ] || [ "$HAS_TMUX_SESSION" = "yes" ]; then
         log "Detected existing Openclaw instance"
-        echo -e "${YELLOW}Warning: detected a running Openclaw instance${NC}"
-        echo -e "${BLUE}Running process IDs: $RUNNING_PROCESS${NC}"
-        read -p "Stop old instance and start a new one? (y/n) [default: y]: " RESTART_CHOICE
-        RESTART_CHOICE=${RESTART_CHOICE:-y}
-
-        if [ "$RESTART_CHOICE" = "y" ] || [ "$RESTART_CHOICE" = "Y" ]; then
-            log "Stopping old instance"
-            echo -e "${YELLOW}Stopping old instance...${NC}"
-            # Stop only openclaw-related processes, not all node processes
-            pkill -9 -f "openclaw" 2>/dev/null || true
-            tmux kill-session -t openclaw 2>/dev/null || true
-            sleep 1
-        else
-            log "User chose not to restart"
-            echo -e "${GREEN}Skipping start; keep current instance running${NC}"
-            return 0
-        fi
+        echo -e "${GREEN}Openclaw is already running; skip restart${NC}"
+        echo -e "${BLUE}Running process IDs: ${RUNNING_PROCESS:-none}${NC}"
+        return 0
     fi
 
     # Ensure temp directory exists
