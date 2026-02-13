@@ -43,7 +43,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="OPENCLAW_GATEWAY_TOKEN"
-            android:inputType="textPassword" />
+            android:inputType="text" />
 
         <TextView
             android:layout_width="wrap_content"
