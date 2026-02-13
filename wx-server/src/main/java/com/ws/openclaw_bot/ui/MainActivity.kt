@@ -35,6 +35,7 @@ open class MainActivity : AppCompatActivity() {
     private lateinit var serviceStatusIcon: android.widget.ImageView
     private lateinit var serverStatusText: TextView
     private lateinit var openServerSettings: Button
+    private lateinit var openConfigEditorBtn: Button
     private lateinit var openAccessibilityBtn: Button
     private lateinit var openImeSettingsBtn: Button
     private lateinit var pickImeBtn: Button
@@ -60,6 +61,7 @@ open class MainActivity : AppCompatActivity() {
         serviceStartBtn = findViewById(R.id.btn_service_start)
         serviceStopBtn = findViewById(R.id.btn_service_stop)
         openServerSettings = findViewById(R.id.btn_open_server_settings)
+        openConfigEditorBtn = findViewById(R.id.btn_open_config_editor)
         openAccessibilityBtn = findViewById(R.id.btn_open_accessibility)
         openImeSettingsBtn = findViewById(R.id.btn_open_ime_settings)
         pickImeBtn = findViewById(R.id.btn_pick_ime)
@@ -67,6 +69,7 @@ open class MainActivity : AppCompatActivity() {
 
         openTerminalBtn.setOnClickListener { openTermuxTerminal() }
         openServerSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
+        openConfigEditorBtn.setOnClickListener { startActivity(Intent(this, OpenClawConfigEditorActivity::class.java)) }
         openAccessibilityBtn.setOnClickListener { openAccessibilitySettings(this) }
         openImeSettingsBtn.setOnClickListener { openInputMethodSettings() }
         pickImeBtn.setOnClickListener { showInputMethodPicker() }

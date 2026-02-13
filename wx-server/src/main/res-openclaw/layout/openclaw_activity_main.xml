@@ -20,6 +20,12 @@
         android:text="@string/openclaw_btn_server_settings" />
 
     <Button
+        android:id="@+id/btn_open_config_editor"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="编辑OpenClaw配置" />
+
+    <Button
         android:id="@+id/btn_open_accessibility"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"

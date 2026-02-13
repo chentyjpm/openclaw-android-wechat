@@ -21,6 +21,10 @@
             android:name="com.ws.wx_server.ui.SettingsActivity"
             android:exported="false" />
 
+        <activity
+            android:name="com.ws.wx_server.ui.OpenClawConfigEditorActivity"
+            android:exported="false" />
+
         <service
             android:name="com.ws.wx_server.core.CoreForegroundService"
             android:exported="false"
