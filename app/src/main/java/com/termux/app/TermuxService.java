@@ -627,6 +627,11 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
             return null;
         }
 
+        if (isOpenClawGatewayOrSessionActive()) {
+            appendStartupJavaLogLine("SKIP: openclaw already active, startup command not injected");
+            return null;
+        }
+
         TermuxSession startupSession = getTermuxSessionForShellName(OPENCLAW_STARTUP_SESSION_NAME);
         if (startupSession == null) {
             startupSession = createTermuxSession(null, null, null, workingDirectory, false, OPENCLAW_STARTUP_SESSION_NAME);
@@ -792,6 +797,51 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
             }
         } catch (Exception e) {
             // Ignore logging failures.
+        }
+    }
+
+    private boolean isOpenClawGatewayOrSessionActive() {
+        final String termuxBin = TermuxConstants.TERMUX_BIN_PREFIX_DIR_PATH;
+        final String shPath = termuxBin + "/sh";
+        if (!new File(shPath).isFile()) return false;
+
+        final String checkCommand =
+            "if [ -x \"" + termuxBin + "/pgrep\" ] && \"" + termuxBin + "/pgrep\" -f \"[o]penclaw gateway\" >/dev/null 2>&1; then " +
+                "exit 0; " +
+            "fi; " +
+            "if [ -x \"" + termuxBin + "/tmux\" ] && \"" + termuxBin + "/tmux\" has-session -t openclaw >/dev/null 2>&1; then " +
+                "exit 0; " +
+            "fi; " +
+            "exit 1";
+
+        Process process = null;
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder(shPath, "-lc", checkCommand);
+            processBuilder.directory(new File(TermuxConstants.TERMUX_HOME_DIR_PATH));
+            processBuilder.redirectErrorStream(true);
+
+            java.util.Map<String, String> env = processBuilder.environment();
+            env.put("HOME", TermuxConstants.TERMUX_HOME_DIR_PATH);
+            env.put("PREFIX", TermuxConstants.TERMUX_PREFIX_DIR_PATH);
+            env.put("PATH", termuxBin + ":/system/bin");
+
+            process = processBuilder.start();
+            int exitCode = process.waitFor();
+            return exitCode == 0;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Logger.logWarn(LOG_TAG, "Interrupted while checking openclaw runtime state");
+            return false;
+        } catch (Exception e) {
+            Logger.logStackTraceWithMessage(LOG_TAG, "Failed to check openclaw runtime state", e);
+            return false;
+        } finally {
+            if (process != null) {
+                try {
+                    process.getInputStream().close();
+                } catch (Exception ignored) {
+                }
+            }
         }
     }
 
