@@ -806,7 +806,7 @@ public final class TermuxService extends Service implements AppShell.AppShellCli
         if (!new File(shPath).isFile()) return false;
 
         final String checkCommand =
-            "if [ -x \"" + termuxBin + "/pgrep\" ] && \"" + termuxBin + "/pgrep\" -f \"openclaw gateway\" >/dev/null 2>&1; then " +
+            "if [ -x \"" + termuxBin + "/pgrep\" ] && \"" + termuxBin + "/pgrep\" -f \"[o]penclaw gateway\" >/dev/null 2>&1; then " +
                 "exit 0; " +
             "fi; " +
             "if [ -x \"" + termuxBin + "/tmux\" ] && \"" + termuxBin + "/tmux\" has-session -t openclaw >/dev/null 2>&1; then " +
