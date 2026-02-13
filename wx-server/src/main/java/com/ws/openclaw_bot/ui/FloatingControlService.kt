@@ -60,7 +60,7 @@ class FloatingControlService : Service() {
     private var logToggleBtn: Button? = null
     private var wsLogSocket: WebSocket? = null
     private val wsLogLines = ArrayDeque<String>()
-    private var logPanelVisible = true
+    private var logPanelVisible = false
     private var lastStatusSummary: String = ""
     private var wsLogReqSeq = 0L
     private var wsTailCursor: Long? = null
@@ -98,6 +98,7 @@ class FloatingControlService : Service() {
             return START_NOT_STICKY
         }
         ensureOverlay()
+        syncLogPanelVisibilityWithServiceState()
         if (intent?.action == ACTION_RECONNECT_LOG_WS) {
             reconnectWsLog("manual_reconnect")
         }
@@ -164,9 +165,6 @@ class FloatingControlService : Service() {
         windowManager?.addView(view, params)
         rootView = view
         lp = params
-        if (logPanelVisible) {
-            connectWsLog()
-        }
         Logger.i("Floating control shown")
     }
 
@@ -301,9 +299,17 @@ class FloatingControlService : Service() {
             lastStatusSummary = summary
             appendLog(summary)
         }
+        syncLogPanelVisibilityWithServiceState()
     }
 
     private fun toggleLogPanel() {
+        if (!ServiceStateStore.isRunning(this)) {
+            logPanelVisible = false
+            logPanel?.visibility = View.GONE
+            logToggleBtn?.text = "日志"
+            Toast.makeText(this, "请先启动服务", Toast.LENGTH_SHORT).show()
+            return
+        }
         logPanelVisible = !logPanelVisible
         logPanel?.visibility = if (logPanelVisible) View.VISIBLE else View.GONE
         logToggleBtn?.text = if (logPanelVisible) "收起日志" else "日志"
@@ -415,6 +421,26 @@ class FloatingControlService : Service() {
             connectWsLog()
         } else {
             appendLog("ws reconnect requested (log panel hidden)")
+        }
+    }
+
+    private fun syncLogPanelVisibilityWithServiceState() {
+        val running = ServiceStateStore.isRunning(this)
+        if (!running) {
+            if (logPanelVisible) {
+                logPanelVisible = false
+                logPanel?.visibility = View.GONE
+                logToggleBtn?.text = "日志"
+                stopWsLog("service_stopped")
+            }
+            return
+        }
+
+        if (!logPanelVisible) {
+            logPanelVisible = true
+            logPanel?.visibility = View.VISIBLE
+            logToggleBtn?.text = "收起日志"
+            connectWsLog()
         }
     }
 

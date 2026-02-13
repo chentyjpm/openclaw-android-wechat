@@ -104,6 +104,7 @@ open class MainActivity : AppCompatActivity() {
             CoreForegroundService.stop(this)
             serverStatusText.text = "OpenClaw服务: 未连接"
             serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
+            requestFloatingControlStateSync()
         }
 
         val am = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
@@ -255,6 +256,7 @@ open class MainActivity : AppCompatActivity() {
         CoreForegroundService.stop(this)
         serverStatusText.text = "OpenClaw服务: 未连接"
         serverStatusIcon.setImageResource(R.drawable.openclaw_ic_status_off)
+        requestFloatingControlStateSync()
 
         val bashFile = File(TERMUX_BASH_PATH)
         if (!bashFile.isFile) {
@@ -319,6 +321,18 @@ open class MainActivity : AppCompatActivity() {
             val serviceIntent = Intent(this, FloatingControlService::class.java).apply {
                 action = FloatingControlService.ACTION_RECONNECT_LOG_WS
             }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun requestFloatingControlStateSync() {
+        try {
+            val serviceIntent = Intent(this, FloatingControlService::class.java)
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 startForegroundService(serviceIntent)
             } else {
