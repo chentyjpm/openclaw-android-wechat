@@ -60,7 +60,7 @@ class FloatingControlService : Service() {
     private var logToggleBtn: Button? = null
     private var wsLogSocket: WebSocket? = null
     private val wsLogLines = ArrayDeque<String>()
-    private var logPanelVisible = false
+    private var logPanelVisible = true
     private var lastStatusSummary: String = ""
     private var wsLogReqSeq = 0L
     private var wsTailCursor: Long? = null
@@ -164,6 +164,9 @@ class FloatingControlService : Service() {
         windowManager?.addView(view, params)
         rootView = view
         lp = params
+        if (logPanelVisible) {
+            connectWsLog()
+        }
         Logger.i("Floating control shown")
     }
 
@@ -220,6 +223,8 @@ class FloatingControlService : Service() {
         logScrollView = view.findViewById(R.id.sv_float_log)
         logContent = view.findViewById(R.id.tv_float_log_content)
         val logClearBtn = view.findViewById<Button>(R.id.btn_float_log_clear)
+        logPanel?.visibility = if (logPanelVisible) View.VISIBLE else View.GONE
+        logToggleBtn?.text = if (logPanelVisible) "收起日志" else "日志"
 
         tabScanStartBtn.setOnClickListener {
             if (!LanBotImeService.isServiceActive()) {
@@ -301,7 +306,7 @@ class FloatingControlService : Service() {
     private fun toggleLogPanel() {
         logPanelVisible = !logPanelVisible
         logPanel?.visibility = if (logPanelVisible) View.VISIBLE else View.GONE
-        logToggleBtn?.text = if (logPanelVisible) "Hide Logs" else "Logs"
+        logToggleBtn?.text = if (logPanelVisible) "收起日志" else "日志"
         if (logPanelVisible) {
             appendLog("open log panel")
             connectWsLog()

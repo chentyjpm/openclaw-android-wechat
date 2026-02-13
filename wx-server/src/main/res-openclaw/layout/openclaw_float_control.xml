@@ -131,7 +131,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="6dp"
         android:orientation="vertical"
-        android:visibility="gone">
+        android:visibility="visible">
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -145,6 +145,7 @@
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
                 android:text="WS &#36816;&#34892;&#26085;&#24535;"
+                android:visibility="gone"
                 android:textColor="#FFB0FFB0"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -153,6 +154,7 @@
                 android:id="@+id/btn_float_log_clear"
                 android:layout_width="wrap_content"
                 android:layout_height="30dp"
+                android:visibility="gone"
                 android:text="&#28165;&#31354;" />
         </LinearLayout>
 
@@ -170,7 +172,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:fontFamily="monospace"
-                android:text="&#28857;&#20987;&#26085;&#24535;&#24320;&#22987;&#36830;&#25509; WS..."
+                android:text="&#26085;&#24535;&#21152;&#36733;&#20013;..."
                 android:textColor="#FFD8FFD8"
                 android:textSize="11sp" />
         </ScrollView>
